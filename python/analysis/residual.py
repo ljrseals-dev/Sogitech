@@ -16,17 +16,30 @@ def residual_energy(
     Estimate residual (noise / unvoiced) energy.
     Returns (times, residual_rms).
     """
+    audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
+    if (not np.isfinite(sr) or sr <= 0 or not isinstance(frame_length, (int, np.integer))
+            or isinstance(frame_length, bool) or not isinstance(hop_length, (int, np.integer))
+            or isinstance(hop_length, bool) or frame_length < 1 or hop_length < 1):
+        raise ValueError("invalid sample rate or residual frame geometry")
+    if audio.size == 0 or not np.all(np.isfinite(audio)):
+        raise ValueError("audio must contain finite samples")
 
     # High-pass the signal roughly above typical f0 range to isolate residual-ish energy
-    try:
-        from scipy.signal import butter, sosfilt
-        sos = butter(4, 3000, btype="high", fs=sr, output="sos")
-        residual = sosfilt(sos, audio)
-    except Exception:
+    if sr <= 6000:
         residual = audio
+    else:
+        try:
+            from scipy.signal import butter, sosfilt
+            sos = butter(4, 3000, btype="high", fs=sr, output="sos")
+            residual = sosfilt(sos, audio)
+        except Exception:
+            residual = audio
 
+    # Frame the residual into finite RMS measurements.
+    if residual.size == 0 or not np.all(np.isfinite(residual)):
+        raise ValueError("residual contains invalid samples")
     n_frames = 1 + max(0, (len(residual) - frame_length) // hop_length)
     energy = np.zeros(n_frames, dtype=np.float64)
     times = np.arange(n_frames) * hop_length / sr
@@ -52,9 +65,13 @@ def extract_residual(
     In a full system this would be the signal after subtracting a harmonic reconstruction.
     For the demo we return a high-passed version of the input.
     """
-    try:
-        from scipy.signal import butter, sosfilt
-        sos = butter(4, 2500, btype="high", fs=sr, output="sos")
-        return sosfilt(sos, audio).astype(np.float32)
-    except Exception:
+    audio = np.asarray(audio, dtype=np.float64)
+    if audio.ndim > 1:
+        audio = audio.mean(axis=1)
+    if not np.isfinite(sr) or sr <= 0 or audio.size == 0 or not np.all(np.isfinite(audio)):
+        raise ValueError("audio must contain finite samples and sample rate must be positive")
+    if sr <= 5000:
         return audio.astype(np.float32)
+    from scipy.signal import butter, sosfilt
+    sos = butter(4, 2500, btype="high", fs=sr, output="sos")
+    return sosfilt(sos, audio).astype(np.float32)

@@ -25,12 +25,24 @@ processor SogitechCodecProcessor [[ main ]]
     input value float residualGain = 0.15;
     input value float dryWet = 1.0;
 
-    bool noteGate = true;
+    bool noteGate = false;
+    bool noteActive = false;
     bool sustainPedal = false;
     bool pendingNoteRelease = false;
-    float gateGain = 1.0;
+    bool hasMidiVelocity = false;
+    bool hasMidiPressure = false;
+    bool hasMidiFilterLP = false;
+    bool hasMidiFilterRes = false;
+    float gateGain = 0.0;
+    float activeVelocity = 0.0;
+    float activePressure = 0.0;
+    float activeFilterLP = 0.72;
+    float activeFilterRes = 0.22;
     float pitchBendSemitones = 0.0;
     float masterVolume = 1.0;
+    int activeMidiNote = -1;
+    int activeMidiChannel = -1;
+    int sustainChannel = -1;
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
     float sagMemory = 1.0, loadMemory = 0.0;
     float lp1 = 0.0, bp1 = 0.0, hp1 = 0.0;
@@ -38,58 +50,140 @@ processor SogitechCodecProcessor [[ main ]]
     float currentFreq = 440.0;
 
     // Monophonic policy: matching note-off releases the active pitch;
-    // CC 120/123 and MIDI all-notes/all-sound-off always release it.
+    // CC 120/123 and MIDI panic messages affect only their own channel.
     event midiIn (std::midi::Message message)
     {
-        if (std::midi::isNoteOn (message))
+        let noteNumber = std::midi::getNoteNumber (message);
+        let channel = std::midi::getChannel0to15 (message);
+        let velocityValue = std::midi::getFloatVelocity (message);
+
+        // MIDI specifies Note On with velocity zero as Note Off.
+        if (std::midi::isNoteOn (message) && velocityValue > 0.0)
         {
-            midiNote = float (std::midi::getNoteNumber (message));
-            velocity = std::midi::getFloatVelocity (message);
+            activeMidiNote = noteNumber;
+            activeMidiChannel = channel;
+            activeVelocity = velocityValue;
+            hasMidiVelocity = true;
+            noteActive = true;
             noteGate = true;
             pendingNoteRelease = false;
         }
-        else if (std::midi::isNoteOff (message))
+        else if (std::midi::isNoteOff (message)
+                 || (std::midi::isNoteOn (message) && velocityValue <= 0.0))
         {
-            if (std::midi::getNoteNumber (message) == int (midiNote))
+            if (noteActive && noteNumber == activeMidiNote && channel == activeMidiChannel)
             {
-                if (sustainPedal) pendingNoteRelease = true;
-                else noteGate = false;
+                if (sustainPedal && channel == sustainChannel)
+                    pendingNoteRelease = true;
+                else
+                {
+                    noteGate = false;
+                    noteActive = false;
+                }
             }
         }
-        else if (std::midi::isPitchWheel (message))
+        else if (std::midi::isPitchWheel (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             pitchBendSemitones = (float (std::midi::getPitchWheelValue (message)) - 8192.0)
                                   * (2.0 / 8192.0);
         }
-        else if (std::midi::isChannelPressure (message))
-            pressure = std::midi::getFloatChannelPressureValue (message);
-        else if (std::midi::isAftertouch (message))
-            pressure = std::midi::getFloatAfterTouchValue (message);
-        else if (std::midi::isController (message))
+        else if (std::midi::isChannelPressure (message)
+                 && (!noteActive || channel == activeMidiChannel))
+        {
+            activePressure = std::midi::getFloatChannelPressureValue (message);
+            hasMidiPressure = true;
+        }
+        else if (std::midi::isAftertouch (message)
+                 && (!noteActive || (channel == activeMidiChannel && noteNumber == activeMidiNote)))
+        {
+            activePressure = std::midi::getFloatAfterTouchValue (message);
+            hasMidiPressure = true;
+        }
+        // Sustain belongs to its own MIDI channel, not necessarily the
+        // currently selected monophonic voice channel.
+        else if (std::midi::isController (message)
+                 && std::midi::getControllerNumber (message) == 64)
+        {
+            let ccValue = std::midi::getFloatControllerValue (message);
+            if (!sustainPedal || channel == sustainChannel)
+            {
+                sustainPedal = ccValue >= 0.5;
+                if (sustainPedal)
+                    sustainChannel = channel;
+                else
+                {
+                    sustainChannel = -1;
+                    if (pendingNoteRelease && channel == activeMidiChannel)
+                    {
+                        noteGate = false;
+                        noteActive = false;
+                        pendingNoteRelease = false;
+                    }
+                }
+            }
+        }
+        // Panic controllers are channel-scoped too. They must be able to
+        // clear that channel's sustain state even when another channel owns
+        // the current monophonic voice.
+        else if (std::midi::isController (message)
+                 && (std::midi::getControllerNumber (message) == 120
+                     || std::midi::getControllerNumber (message) == 123))
+        {
+            let cc = std::midi::getControllerNumber (message);
+            if (noteActive && channel == activeMidiChannel)
+            {
+                noteGate = false;
+                noteActive = false;
+                pendingNoteRelease = false;
+                if (cc == 120)
+                    gateGain = 0.0;
+            }
+            if (sustainPedal && channel == sustainChannel)
+            {
+                sustainPedal = false;
+                sustainChannel = -1;
+            }
+        }
+        else if (std::midi::isController (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             let cc = std::midi::getControllerNumber (message);
             let ccValue = std::midi::getFloatControllerValue (message);
-            if (cc == 7) masterVolume = ccValue;
-            else if (cc == 1) pressure = ccValue;
-            else if (cc == 71) filterRes = ccValue;
-            else if (cc == 74) filterLP = 0.05 + ccValue * 0.95;
-            else if (cc == 64)
+            if (cc == 7)
+                masterVolume = ccValue;
+            else if (cc == 1)
             {
-                sustainPedal = ccValue >= 0.5;
-                if (!sustainPedal && pendingNoteRelease)
-                {
-                    noteGate = false;
-                    pendingNoteRelease = false;
-                }
+                activePressure = ccValue;
+                hasMidiPressure = true;
             }
-            else if (cc == 120 || cc == 123)
+            else if (cc == 71)
             {
-                noteGate = false;
-                pendingNoteRelease = false;
+                activeFilterRes = ccValue;
+                hasMidiFilterRes = true;
+            }
+            else if (cc == 74)
+            {
+                activeFilterLP = 0.05 + ccValue * 0.95;
+                hasMidiFilterLP = true;
             }
         }
         else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
-            noteGate = false;
+        {
+            if (noteActive && channel == activeMidiChannel)
+            {
+                noteGate = false;
+                noteActive = false;
+                pendingNoteRelease = false;
+                if (std::midi::isAllSoundOff (message))
+                    gateGain = 0.0;
+            }
+            if (sustainPedal && channel == sustainChannel)
+            {
+                sustainPedal = false;
+                sustainChannel = -1;
+            }
+        }
     }
 
     float prewarp (float freq, float sr)
@@ -124,18 +218,23 @@ processor SogitechCodecProcessor [[ main ]]
         let srInv = 1.0 / sampleRate;
         loop
         {
-            let bentNote = clamp (midiNote + pitchBendSemitones, 0.0, 127.0);
+            let sourceNote = activeMidiNote >= 0 ? float (activeMidiNote) : midiNote;
+            let bentNote = clamp (sourceNote + pitchBendSemitones, 0.0, 127.0);
+            let velocityValue = hasMidiVelocity ? activeVelocity : velocity;
+            let pressureValue = hasMidiPressure ? activePressure : pressure;
+            let filterLPValue = hasMidiFilterLP ? activeFilterLP : filterLP;
+            let filterResValue = hasMidiFilterRes ? activeFilterRes : filterRes;
             let targetFreq = 440.0 * pow (2.0, (bentNote - 69.0) / 12.0);
             let glideCoeff = exp (-1.0 / (max (glideTime, 0.001) * sampleRate));
             currentFreq = currentFreq * glideCoeff + targetFreq * (1.0 - glideCoeff);
 
             let keyMod = ((bentNote - 60.0) / 48.0) * keyTrack * 0.6;
-            let pressMod = (velocity * 0.8 + pressure * 0.2) * velMod * 2400.0;
-            let lpCutoff = clamp (filterLP * 18000.0 * (1.0 + keyMod) + pressMod * 0.7,
+            let pressMod = (velocityValue * 0.8 + pressureValue * 0.2) * velMod * 2400.0;
+            let lpCutoff = clamp (filterLPValue * 18000.0 * (1.0 + keyMod) + pressMod * 0.7,
                                   180.0, sampleRate * 0.45);
             let hpCutoff = clamp (filterHP * 120.0 * (1.0 + keyMod * 0.5) - pressMod * 0.3,
                                   18.0, min (7500.0, lpCutoff * 0.8));
-            let res = clamp (filterRes * (1.0 + velocity * 0.35), 0.0, 0.95);
+            let res = clamp (filterResValue * (1.0 + velocityValue * 0.35), 0.0, 0.95);
             let phaseInc = currentFreq * 2.0 * pi * srInv;
             osc1Phase = fmod (osc1Phase + phaseInc, 2.0 * pi);
             osc2Phase = fmod (osc2Phase + phaseInc * 1.01, 2.0 * pi);
@@ -148,8 +247,11 @@ processor SogitechCodecProcessor [[ main ]]
             let additiveSig = digitalOsc (osc1Phase);
             float mixed = (1.0 - additiveBlend) * vaSig + additiveBlend * additiveSig;
             loadMemory = 0.992 * loadMemory + 0.008 * abs (mixed);
-            sagMemory *= exp (-0.12 * powerSagDepth * loadMemory * srInv);
-            sagMemory = max (0.48, sagMemory);
+            // Track the load-dependent sag target so attenuation recovers
+            // when the signal load falls instead of accumulating permanently.
+            let sagTarget = max (0.48, 1.0 - powerSagDepth * loadMemory * 0.8);
+            let sagRecovery = exp (-1.0 / (0.15 * sampleRate));
+            sagMemory = sagTarget + (sagMemory - sagTarget) * sagRecovery;
             mixed *= sagMemory;
 
             let lpK = prewarp (lpCutoff, sampleRate) * srInv;

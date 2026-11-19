@@ -19,7 +19,9 @@ def spectral_features(
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or n_fft < 2 or hop_length < 1:
+    if (not np.isfinite(sr) or sr <= 0 or not isinstance(n_fft, (int, np.integer))
+            or isinstance(n_fft, bool) or not isinstance(hop_length, (int, np.integer))
+            or isinstance(hop_length, bool) or n_fft < 2 or hop_length < 1):
         raise ValueError("invalid sample rate or STFT frame geometry")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples")
@@ -60,8 +62,14 @@ def estimate_filter_params(
     Map spectral features onto the normalised filter controls of the hybrid engine.
     filterLP / filterHP are in [0, 1] as expected by the Cmajor processor.
     """
-    centroid = features["centroid"]
-    flatness = features["flatness"]
+    if not np.isfinite(sr) or sr <= 0:
+        raise ValueError("sample rate must be positive")
+    centroid = np.asarray(features["centroid"], dtype=np.float64)
+    flatness = np.asarray(features["flatness"], dtype=np.float64)
+    if centroid.ndim != 1 or flatness.ndim != 1 or centroid.size == 0 or centroid.shape != flatness.shape:
+        raise ValueError("centroid and flatness must be non-empty one-dimensional arrays of equal length")
+    if not np.all(np.isfinite(centroid)) or not np.all(np.isfinite(flatness)):
+        raise ValueError("spectral features must contain finite values")
 
     # Map centroid (Hz) roughly onto LP cutoff control
     # 180 Hz → ~0.0, 18 kHz → ~1.0

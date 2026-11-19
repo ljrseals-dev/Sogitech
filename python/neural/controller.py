@@ -38,6 +38,10 @@ if HAS_TORCH:
         """64-feature MLP producing 18 normalised parameter values."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
             super().__init__()
+            if in_dim != 64:
+                raise ValueError("in_dim must be 64 for the Sogitech feature contract")
+            if not isinstance(hidden, int) or isinstance(hidden, bool) or hidden < 1:
+                raise ValueError("hidden must be a positive integer")
             if out_dim != len(PARAM_NAMES):
                 raise ValueError(f"out_dim must be {len(PARAM_NAMES)}")
             self.net = nn.Sequential(
@@ -52,9 +56,12 @@ if HAS_TORCH:
         def predict_dict(self, features: np.ndarray) -> Dict[str, float]:
             self.eval()
             with torch.no_grad():
-                t = torch.as_tensor(np.asarray(features, dtype=np.float32)).reshape(1, -1)
-                if t.shape[1] != 64:
+                values = np.asarray(features, dtype=np.float32).reshape(-1)
+                if values.size != 64:
                     raise ValueError("controller expects exactly 64 features")
+                if not np.all(np.isfinite(values)):
+                    raise ValueError("controller features must be finite")
+                t = torch.as_tensor(values).reshape(1, -1)
                 normalised = self(t).squeeze(0).cpu().numpy()
             values = _LO + normalised * _SPAN
             return {name: float(values[i]) for i, name in enumerate(PARAM_NAMES)}
@@ -62,6 +69,12 @@ else:
     class ParameterController:
         """Numpy inference fallback; cannot load or train PyTorch checkpoints."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
+            if in_dim != 64:
+                raise ValueError("in_dim must be 64 for the Sogitech feature contract")
+            if not isinstance(hidden, int) or isinstance(hidden, bool) or hidden < 1:
+                raise ValueError("hidden must be a positive integer")
+            if out_dim != len(PARAM_NAMES):
+                raise ValueError(f"out_dim must be {len(PARAM_NAMES)}")
             self.in_dim, self.out_dim = in_dim, out_dim
             rng = np.random.default_rng(42)
             self.W1 = rng.normal(0, 0.05, (in_dim, hidden))
@@ -79,7 +92,12 @@ else:
             return 1.0 / (1.0 + np.exp(-np.clip(raw, -30, 30)))
 
         def predict_dict(self, features: np.ndarray) -> Dict[str, float]:
-            normalised = self.forward(np.asarray(features).reshape(1, -1))[0]
+            values_in = np.asarray(features, dtype=np.float32).reshape(-1)
+            if values_in.size != 64:
+                raise ValueError("controller expects exactly 64 features")
+            if not np.all(np.isfinite(values_in)):
+                raise ValueError("controller features must be finite")
+            normalised = self.forward(values_in.reshape(1, -1))[0]
             values = _LO + normalised * _SPAN
             return {name: float(values[i]) for i, name in enumerate(PARAM_NAMES)}
 
@@ -95,7 +113,15 @@ def load_controller(path: Optional[str] = None) -> ParameterController:
     if checkpoint_path.suffix.lower() not in {".pt", ".pth"}:
         raise ValueError("only .pt/.pth state-dict checkpoints are supported")
     checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
-    state = checkpoint.get("state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
+    if isinstance(checkpoint, dict) and "state_dict" in checkpoint:
+        names = checkpoint.get("parameter_names")
+        if names is not None and list(names) != PARAM_NAMES:
+            raise ValueError("checkpoint parameter order does not match this Sogitech version")
+        if checkpoint.get("input_dim", 64) != 64:
+            raise ValueError("checkpoint input dimension must be 64")
+        state = checkpoint["state_dict"]
+    else:
+        state = checkpoint
     if not isinstance(state, dict):
         raise ValueError("checkpoint must contain a state_dict")
     model = ParameterController()
