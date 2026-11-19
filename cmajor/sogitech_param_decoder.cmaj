@@ -1,5 +1,5 @@
 // Parameter-driven decoder with bounded MIDI event handling.
-processor SogitechParamDecoder
+processor SogitechParamDecoder [[ main ]]
 {
     input stream float32 in;
     output stream float32 out;
@@ -69,15 +69,15 @@ processor SogitechParamDecoder
         else if (std::midi::isController (message))
         {
             let cc = std::midi::getControllerNumber (message);
-            let value = std::midi::getFloatControllerValue (message);
+            let ccValue = std::midi::getFloatControllerValue (message);
             if (cc == 7)
-                masterVolume = value;
+                masterVolume = ccValue;
             else if (cc == 1)
-                pressure = value;
+                pressure = ccValue;
             else if (cc == 71)
-                filterRes = value;
+                filterRes = ccValue;
             else if (cc == 74)
-                filterLP = 0.05 + value * 0.95;
+                filterLP = 0.05 + ccValue * 0.95;
             else if (cc == 120 || cc == 123)
                 noteGate = false;
         }
