@@ -26,7 +26,9 @@ def main():
         cardinality=estimate_cardinality(space)
     except (KeyError,TypeError,ValueError) as exc:
         parser.error(f"invalid search space: {exc}")
-    max_combinations=int(space.get("constraints", [{}])[-1].get("max_combinations", 50000))
+    limits = [item["max_combinations"] for item in space.get("constraints", [])
+              if isinstance(item, dict) and "max_combinations" in item]
+    max_combinations = min(limits, default=50000)
     estimated=cardinality*args.cost_per_combo_usd
     print("=== Sogitech Codec – Brute Genius Plan ===")
     print(f"Space           : {space.get('name','unnamed')}")
