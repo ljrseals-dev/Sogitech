@@ -1,93 +1,61 @@
-"""
-Brute Genius search space definition for the Sogitech Codec.
+"""Brute Genius search space for staged Sogitech codec optimisation.
 
-This is a pure data description of the discrete dimensions that Brute Genius
-will expand into a full Cartesian product. It does not execute any search
-itself – that is the job of the Brute Genius MCP / server.
+The full Cartesian product is deliberately capped below 50k candidates.
+Each axis contains concrete algorithm/configuration choices; unavailable
+external models are not advertised as installed or runnable backends.
 """
-
 from __future__ import annotations
+from copy import deepcopy
+from math import prod
+from typing import Any
 
-from typing import Any, Dict, List
-
-
-SOGITECH_CODEC_SPACE: Dict[str, Any] = {
-    "name": "sogitech_codec_v1",
-    "description": (
-        "Exhaustive search over analysis front-ends, residual strategies, "
-        "quantisation, and optional neural controller variants for the "
-        "Sogitech hybrid codec."
-    ),
+SOGITECH_CODEC_SPACE: dict[str, Any] = {
+    "name": "sogitech_codec_v2",
+    "description": "Bounded search across analysis, codec, quantisation, neural-controller and deployment trade-offs.",
     "dimensions": {
-        "pitch_tracker": [
-            "librosa_pyin",
-            "autocorr",
-            "crepe_tiny",          # placeholder for future
-            "rmvpe",              # if weights available
-        ],
-        "envelope_method": [
-            "rms",
-            "peak",
-            "harmonic_32",
-        ],
-        "residual_strategy": [
-            "none",
-            "highpass_3k",
-            "harmonic_subtract",
-            "neural_residual",
-        ],
-        "filter_mapping": [
-            "centroid_linear",
-            "centroid_log",
-            "formant_proxy",
-        ],
-        "quantisation_bits": [
-            4, 6, 8, 12,          # per major parameter group
-        ],
-        "neural_controller": [
-            "none",
-            "mlp_64_128",
-            "mlp_128_256",
-            # future: "conformer_tiny", etc.
-        ],
-        "objective_primary": [
-            "spectral_l1",
-            "multi_res_stft",
-            "param_l1",
-            "perceptual_proxy",
-        ],
-        "sample_rate": [
-            48000,
-            96000,
-        ],
-        "latency_budget_ms": [
-            5, 10, 20, 40,
-        ],
+        "codec_mode": ["dsp", "parameter"],
+        "pitch_tracker": ["autocorr", "librosa_pyin"],
+        "envelope_method": ["rms", "peak", "hilbert"],
+        "residual_strategy": ["none", "highpass_3k", "harmonic_subtract"],
+        "filter_mapping": ["centroid_linear", "centroid_log", "spectral_rolloff"],
+        "quantisation_bits": [4, 8, 12],
+        "quantisation_layout": ["uniform", "perceptual"],
+        "neural_controller": ["none", "mlp_64_128", "mlp_64_256"],
+        "objective_primary": ["spectral_l1", "multi_res_stft", "perceptual_proxy"],
+        "sample_rate": [48000, 96000],
+        "latency_budget_ms": [5, 20],
     },
     "constraints": [
-        # Example soft constraints that a planner can enforce
         {"if": {"neural_controller": "none"}, "then": {"residual_strategy": ["none", "highpass_3k", "harmonic_subtract"]}},
-        {"max_combinations": 50_000},   # safety for local runs
+        {"if": {"codec_mode": "dsp"}, "then": {"neural_controller": ["none"]}},
+        {"max_combinations": 50000},
     ],
     "default_objective": "multi_res_stft",
+    "evaluation_protocol": {
+        "split": "grouped_by_source_recording",
+        "metrics": ["spectral_l1", "multi_res_stft", "param_l1", "residual_energy_error", "latency_ms", "cpu_percent", "peak_dbfs"],
+        "repetitions": 3,
+        "seed_policy": "fixed_per_candidate",
+    },
 }
 
-
-def build_space(overrides: Dict[str, List[Any]] | None = None) -> Dict[str, Any]:
-    """Return a copy of the space with optional dimension overrides."""
-    import copy
-    space = copy.deepcopy(SOGITECH_CODEC_SPACE)
+def build_space(overrides: dict[str, list[Any]] | None = None) -> dict[str, Any]:
+    """Return a validated deep copy with optional dimension overrides."""
+    space = deepcopy(SOGITECH_CODEC_SPACE)
     if overrides:
-        for k, v in overrides.items():
-            if k in space["dimensions"]:
-                space["dimensions"][k] = v
+        unknown = set(overrides) - set(space["dimensions"])
+        if unknown:
+            raise KeyError(f"unknown search dimensions: {', '.join(sorted(unknown))}")
+        for key, values in overrides.items():
+            if not isinstance(values, list) or not values:
+                raise ValueError(f"override for {key} must be a non-empty list")
+            space["dimensions"][key] = list(values)
     return space
 
-
-def estimate_cardinality(space: Dict[str, Any] | None = None) -> int:
-    """Product of the sizes of all dimensions."""
-    space = space or SOGITECH_CODEC_SPACE
-    card = 1
-    for vals in space["dimensions"].values():
-        card *= len(vals)
-    return card
+def estimate_cardinality(space: dict[str, Any] | None = None) -> int:
+    """Return the unconstrained Cartesian upper bound for the dimensions."""
+    selected = space or SOGITECH_CODEC_SPACE
+    dimensions = selected.get("dimensions", {})
+    if not dimensions or any(not values for values in dimensions.values()):
+        raise ValueError("every search dimension must contain at least one value")
+    return prod(len(values) for values in dimensions.values())

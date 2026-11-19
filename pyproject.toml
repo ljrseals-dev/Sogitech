@@ -9,41 +9,24 @@ description = "Hybrid analysis-resynthesis / parameter / neural codec built on t
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
-authors = [
-    { name = "ljrseals-dev / Lewis James Seals Jr." }
-]
-dependencies = [
-    "numpy>=1.24",
-    "scipy>=1.10",
-    "soundfile>=0.12",
-    "librosa>=0.10",
-    "torch>=2.0; platform_system != 'Darwin' or platform_machine != 'arm64'",  # optional on Apple Silicon if needed
-    "onnxruntime>=1.15",
-]
+authors = [{ name = "ljrseals-dev / Lewis James Seals Jr." }]
+dependencies = ["numpy>=1.24", "scipy>=1.10", "soundfile>=0.12", "librosa>=0.10"]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "black",
-    "ruff",
-]
-neural = [
-    "torch>=2.0",
-    "torchaudio>=2.0",
-]
-brute = [
-    # Brute Genius is expected to be installed separately or via MCP;
-    # this only provides the space / objective definitions.
-]
+dev = ["pytest>=7.0", "black", "ruff"]
+neural = ["torch>=2.0", "torchaudio>=2.0"]
+onnx = ["onnxruntime>=1.15"]
+brute = []
 
 [project.scripts]
 sogitech-dsp-codec = "scripts.demo_dsp_codec:main"
 sogitech-param-codec = "scripts.demo_param_codec:main"
 sogitech-neural-codec = "scripts.demo_neural_codec:main"
+sogitech-train-controller = "scripts.train_controller:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["python*"]
+include = ["python*", "scripts*"]
 
 [tool.black]
 line-length = 100

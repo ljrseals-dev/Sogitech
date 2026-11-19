@@ -1,50 +1,111 @@
-// sogitech_param_decoder.cmaj
-// ============================================================
-// Parameter-driven decoder for the Sogitech Codec
-// Driven entirely by external analysis / neural / packed parameters
-// ============================================================
-
-processor SogitechParamDecoder
+// Parameter-driven decoder with bounded MIDI event handling.
+processor SogitechParamDecoder [[ main ]]
 {
-    // Audio I/O (in is optional residual or dry; out is the codec output)
     input stream float32 in;
     output stream float32 out;
+    input event std::midi::Message midiIn;
 
-    // ==================== PARAMETER VECTOR ====================
-    // These are the exact controls that form the low-bitrate code
-    input value float osc1Wave     = 1.0;
-    input value float osc2Wave     = 2.0;
-    input value float osc1Level    = 0.80;
-    input value float osc2Level    = 0.80;
-    input value float subLevel     = 0.50;
-    input value float noiseLevel   = 0.12;
-    input value float noiseColor   = 0.55;
-    input value bool  hardSync     = false;
-    input value float pwmAmount    = 0.0;
+    input value float osc1Wave = 1.0;
+    input value float osc2Wave = 2.0;
+    input value float osc1Level = 0.80;
+    input value float osc2Level = 0.80;
+    input value float subLevel = 0.50;
+    input value float noiseLevel = 0.12;
+    input value float noiseColor = 0.55;
+    input value bool hardSync = false;
+    input value float pwmAmount = 0.0;
     input value float unisonDetune = 0.04;
     input value float additiveBlend = 0.28;
     input value float powerSagDepth = 0.26;
-    input value float filterLP   = 0.72;
-    input value float filterHP   = 0.08;
-    input value float filterRes  = 0.22;
-    input value float keyTrack   = 0.55;
-    input value float velMod     = 0.62;
-    input value float glideTime  = 0.06;
+    input value float filterLP = 0.72;
+    input value float filterHP = 0.08;
+    input value float filterRes = 0.22;
+    input value float keyTrack = 0.55;
+    input value float velMod = 0.62;
+    input value float glideTime = 0.06;
+    input value float midiNote = 69.0;
+    input value float velocity = 0.82;
+    input value float pressure = 0.0;
+    input value float residualGain = 0.0;
 
-    // Drive from analysis / neural
-    input value float midiNote   = 69.0;   // continuous pitch in MIDI note units
-    input value float velocity   = 0.82;
-    input value float pressure   = 0.0;
-    input value float residualGain = 0.0;  // mix of residual stream (if present)
+    // Monophonic MIDI policy: only a note-off matching the active pitch
+    // releases the voice. MIDI CC 120/123 are unconditional panic releases.
+    bool noteGate = true;
+    bool sustainPedal = false;
+    bool pendingNoteRelease = false;
+    float gateGain = 1.0;
+    float pitchBendSemitones = 0.0;
+    float masterVolume = 1.0;
 
-    // ==================== INTERNAL STATE ====================
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
-    float sagMemory = 1.0;
-    float loadMemory = 0.0;
+    float sagMemory = 1.0, loadMemory = 0.0;
     float lp1 = 0.0, bp1 = 0.0, hp1 = 0.0;
     float lp2 = 0.0, bp2 = 0.0, hp2 = 0.0;
     float currentFreq = 440.0;
-    float targetFreq  = 440.0;
+
+    event midiIn (std::midi::Message message)
+    {
+        if (std::midi::isNoteOn (message))
+        {
+            midiNote = float (std::midi::getNoteNumber (message));
+            velocity = std::midi::getFloatVelocity (message);
+            noteGate = true;
+            pendingNoteRelease = false;
+        }
+        else if (std::midi::isNoteOff (message))
+        {
+            if (std::midi::getNoteNumber (message) == int (midiNote))
+            {
+                if (sustainPedal) pendingNoteRelease = true;
+                else noteGate = false;
+            }
+        }
+        else if (std::midi::isPitchWheel (message))
+        {
+            pitchBendSemitones = (float (std::midi::getPitchWheelValue (message)) - 8192.0)
+                                  * (2.0 / 8192.0);
+        }
+        else if (std::midi::isChannelPressure (message))
+        {
+            pressure = std::midi::getFloatChannelPressureValue (message);
+        }
+        else if (std::midi::isAftertouch (message))
+        {
+            pressure = std::midi::getFloatAfterTouchValue (message);
+        }
+        else if (std::midi::isController (message))
+        {
+            let cc = std::midi::getControllerNumber (message);
+            let ccValue = std::midi::getFloatControllerValue (message);
+            if (cc == 7)
+                masterVolume = ccValue;
+            else if (cc == 1)
+                pressure = ccValue;
+            else if (cc == 71)
+                filterRes = ccValue;
+            else if (cc == 74)
+                filterLP = 0.05 + ccValue * 0.95;
+            else if (cc == 64)
+            {
+                sustainPedal = ccValue >= 0.5;
+                if (!sustainPedal && pendingNoteRelease)
+                {
+                    noteGate = false;
+                    pendingNoteRelease = false;
+                }
+            }
+            else if (cc == 120 || cc == 123)
+            {
+                noteGate = false;
+                pendingNoteRelease = false;
+            }
+        }
+        else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+        {
+            noteGate = false;
+            pendingNoteRelease = false;
+        }
+    }
 
     float prewarp (float freq, float sr)
     {
@@ -66,7 +127,7 @@ processor SogitechParamDecoder
         {
             case 0: return sin (phase);
             case 1: return (phase / pi) - 1.0;
-            case 2: return (phase < pi * pwm) ? 1.0 : -1.0;
+            case 2: return (phase < 2.0 * pi * clamp (pwm, 0.05, 0.95)) ? 1.0 : -1.0;
             case 3: return abs (sin (phase));
             default: return sin (phase);
         }
@@ -74,67 +135,63 @@ processor SogitechParamDecoder
 
     void main()
     {
-        let sampleRate = 96000.0;
+        let sampleRate = float (processor.frequency);
         let srInv = 1.0 / sampleRate;
 
         loop
         {
-            // Glide / portamento toward target frequency from midiNote
-            targetFreq = 440.0 * pow (2.0, (midiNote - 69.0) / 12.0);
+            let bentNote = clamp (midiNote + pitchBendSemitones, 0.0, 127.0);
+            let targetFreq = 440.0 * pow (2.0, (bentNote - 69.0) / 12.0);
             let glideCoeff = exp (-1.0 / (max (glideTime, 0.001) * sampleRate));
             currentFreq = currentFreq * glideCoeff + targetFreq * (1.0 - glideCoeff);
 
             let baseLP = filterLP * 18000.0;
             let baseHP = filterHP * 120.0;
-            let keyMod   = ((midiNote - 60.0) / 48.0) * keyTrack * 0.6;
+            let keyMod = ((bentNote - 60.0) / 48.0) * keyTrack * 0.6;
             let pressMod = (velocity * 0.8 + pressure * 0.2) * velMod * 2400.0;
-
-            let lpCutoff = clamp (baseLP * (1.0 + keyMod) + pressMod * 0.7, 180.0, 22000.0);
-            let hpCutoff = clamp (baseHP * (1.0 + keyMod * 0.5) - pressMod * 0.3, 18.0, 7500.0);
-            let res      = clamp (filterRes * (1.0 + velocity * 0.35), 0.0, 0.95);
-
+            let lpCutoff = clamp (baseLP * (1.0 + keyMod) + pressMod * 0.7,
+                                  180.0, sampleRate * 0.45);
+            let hpCutoff = clamp (baseHP * (1.0 + keyMod * 0.5) - pressMod * 0.3,
+                                  18.0, min (7500.0, lpCutoff * 0.8));
+            let res = clamp (filterRes * (1.0 + velocity * 0.35), 0.0, 0.95);
             let phaseInc = currentFreq * 2.0 * pi * srInv;
 
             osc1Phase = fmod (osc1Phase + phaseInc, 2.0 * pi);
             osc2Phase = fmod (osc2Phase + phaseInc * (1.0 + unisonDetune), 2.0 * pi);
-            subPhase  = fmod (subPhase  + phaseInc * 0.5, 2.0 * pi);
-
+            subPhase = fmod (subPhase + phaseInc * 0.5, 2.0 * pi);
             if (hardSync && osc1Phase < phaseInc * 1.5)
                 osc2Phase = 0.0;
 
-            float vaSig = vaOsc (osc1Phase, int (osc1Wave), 0.5 + pwmAmount * 0.48) * osc1Level
-                        + vaOsc (osc2Phase, int (osc2Wave), 0.5 + pwmAmount * 0.48) * osc2Level
+            let pwm = 0.5 + pwmAmount * 0.48;
+            float vaSig = vaOsc (osc1Phase, int (osc1Wave), pwm) * osc1Level
+                        + vaOsc (osc2Phase, int (osc2Wave), pwm) * osc2Level
                         + sin (subPhase) * subLevel
                         + (random() * 2.0 - 1.0) * noiseLevel;
-
-            float additiveSig = digitalOsc (osc1Phase);
+            let additiveSig = digitalOsc (osc1Phase);
             float mixed = (1.0 - additiveBlend) * vaSig + additiveBlend * additiveSig;
 
-            // PowerSag
             let rectifier = abs (mixed);
             loadMemory = 0.992 * loadMemory + 0.008 * rectifier;
             sagMemory *= exp (-0.12 * powerSagDepth * loadMemory * srInv);
-            sagMemory  = max (0.48, sagMemory);
+            sagMemory = max (0.48, sagMemory);
             mixed *= sagMemory;
 
-            // SOL-DPKVA dual-pole
-            let lpK  = prewarp (lpCutoff, sampleRate) * srInv;
-            let hpK  = prewarp (hpCutoff, sampleRate) * srInv;
+            let lpK = prewarp (lpCutoff, sampleRate) * srInv;
+            let hpK = prewarp (hpCutoff, sampleRate) * srInv;
             let damp = 1.0 / (1.0 + 2.0 * res);
-
             hp1 = (mixed - lp1 - bp1 * damp) / (1.0 + lpK * lpK);
             bp1 += lpK * hp1;
             lp1 += lpK * bp1;
-
             hp2 = (hp1 - lp2 - bp2 * damp) / (1.0 + hpK * hpK);
             bp2 += hpK * hp2;
             lp2 += hpK * bp2;
 
             let filtered = lp2 * 0.72 + hp2 * 0.28;
-
-            // Optional residual mix (from analysis or neural residual net)
-            float residual = in * residualGain;
-            out <- (filtered * 0.78 + residual) * 0.95;
+            let residual = in * residualGain;
+            let gateTarget = noteGate ? 1.0 : 0.0;
+            let gateCoeff = exp (-1.0 / ((noteGate ? 0.005 : 0.020) * sampleRate));
+            gateGain = gateTarget + (gateGain - gateTarget) * gateCoeff;
+            out <- ((filtered * 0.78 + residual) * 0.95) * masterVolume * gateGain;
             advance();
         }
     }
