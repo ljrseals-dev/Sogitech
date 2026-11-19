@@ -33,6 +33,7 @@ processor SogitechParamDecoder [[ main ]]
     bool noteGate = true;
     bool sustainPedal = false;
     bool pendingNoteRelease = false;
+    float gateGain = 1.0;
     float pitchBendSemitones = 0.0;
     float masterVolume = 1.0;
 
@@ -187,8 +188,10 @@ processor SogitechParamDecoder [[ main ]]
 
             let filtered = lp2 * 0.72 + hp2 * 0.28;
             let residual = in * residualGain;
-            let gate = noteGate ? 1.0 : 0.0;
-            out <- ((filtered * 0.78 + residual) * 0.95) * masterVolume * gate;
+            let gateTarget = noteGate ? 1.0 : 0.0;
+            let gateCoeff = exp (-1.0 / ((noteGate ? 0.005 : 0.020) * sampleRate));
+            gateGain = gateTarget + (gateGain - gateTarget) * gateCoeff;
+            out <- ((filtered * 0.78 + residual) * 0.95) * masterVolume * gateGain;
             advance();
         }
     }
