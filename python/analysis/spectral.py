@@ -16,8 +16,15 @@ def spectral_features(
     Compute basic spectral features used to drive SOL-DPKVA and additiveBlend.
     Returns dict with keys: times, centroid, flatness, flux, bandwidth.
     """
+    audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
+    if sr <= 0 or n_fft < 2 or hop_length < 1:
+        raise ValueError("invalid sample rate or STFT frame geometry")
+    if audio.size == 0 or not np.all(np.isfinite(audio)):
+        raise ValueError("audio must contain finite samples")
+    if audio.size < n_fft:
+        audio = np.pad(audio, (0, n_fft - audio.size))
 
     try:
         import librosa
@@ -29,7 +36,7 @@ def spectral_features(
         bandwidth = librosa.feature.spectral_bandwidth(S=S, sr=sr)[0]
     except Exception:
         # Minimal fallback
-        n_frames = 1 + (len(audio) - n_fft) // hop_length
+        n_frames = 1 + max(0, (len(audio) - n_fft) // hop_length)
         times = np.arange(n_frames) * hop_length / sr
         centroid = np.full(n_frames, 2000.0)
         flatness = np.full(n_frames, 0.1)
