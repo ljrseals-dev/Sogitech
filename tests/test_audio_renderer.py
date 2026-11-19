@@ -62,3 +62,22 @@ def test_brute_genius_space_is_expanded_and_bounded():
     assert "quantisation_layout" in space["dimensions"]
     assert "codec_mode" in space["dimensions"]
     assert estimate_cardinality(space) <= 50000
+
+from python.audio.render import _oscillator
+
+def test_saw_oscillator_wraps_phase_and_remains_bounded():
+    phase = np.linspace(0.0, 200.0 * np.pi, 10001)
+    saw = _oscillator(phase, np.ones_like(phase))
+    assert np.all(np.isfinite(saw))
+    assert float(np.min(saw)) >= -1.0
+    assert float(np.max(saw)) <= 1.0
+
+def test_renderer_rejects_non_finite_residual():
+    frames = _frames()
+    with pytest.raises(ValueError, match="finite samples"):
+        render_parameter_stream(frames, [0.0, 0.08], 2048, 48000,
+                                residual=np.full(2048, np.nan))
+
+def test_renderer_rejects_non_integer_sample_count():
+    with pytest.raises(ValueError, match="sample_count"):
+        render_parameter_stream(_frames(), [0.0, 0.08], 12.5, 48000)
