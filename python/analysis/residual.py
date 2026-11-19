@@ -16,29 +16,17 @@ def residual_energy(
     Estimate residual (noise / unvoiced) energy.
     Returns (times, residual_rms).
     """
-    audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or frame_length < 1 or hop_length < 1:
-        raise ValueError("invalid sample rate or residual frame geometry")
-    if audio.size == 0 or not np.all(np.isfinite(audio)):
-        raise ValueError("audio must contain finite samples")
 
     # High-pass the signal roughly above typical f0 range to isolate residual-ish energy
-    if sr <= 6000:
+    try:
+        from scipy.signal import butter, sosfilt
+        sos = butter(4, 3000, btype="high", fs=sr, output="sos")
+        residual = sosfilt(sos, audio)
+    except Exception:
         residual = audio
-    else:
-        try:
-            from scipy.signal import butter, sosfilt
-            sos = butter(4, 3000, btype="high", fs=sr, output="sos")
-            residual = sosfilt(sos, audio)
-        except Exception:
-            residual = audio
 
-    # Frame the residual into finite RMS measurements.
-    if residual.size == 0 or not np.all(np.isfinite(residual)):
-        raise ValueError("residual contains invalid samples")
-    #
     n_frames = 1 + max(0, (len(residual) - frame_length) // hop_length)
     energy = np.zeros(n_frames, dtype=np.float64)
     times = np.arange(n_frames) * hop_length / sr
