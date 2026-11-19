@@ -1,16 +1,10 @@
-"""
-Neural parameter controller for the Sogitech Codec.
-
-Maps audio features (or a simple embedding) → the exact parameter vector
-expected by the Cmajor decoder.
-"""
-
+"""Neural parameter controller with bounded, serialisable outputs."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Dict, Optional
 import numpy as np
 
-# Optional torch – the rest of the codec still works without it
 try:
     import torch
     import torch.nn as nn
@@ -18,85 +12,93 @@ try:
 except ImportError:
     HAS_TORCH = False
 
-
-# Canonical parameter order used by the codec
 PARAM_NAMES = [
-    "osc1Wave", "osc2Wave", "osc1Level", "osc2Level",
-    "subLevel", "noiseLevel", "additiveBlend", "powerSagDepth",
-    "filterLP", "filterHP", "filterRes", "keyTrack", "velMod",
-    "glideTime", "midiNote", "velocity", "pressure", "residualGain",
+    "osc1Wave", "osc2Wave", "osc1Level", "osc2Level", "subLevel", "noiseLevel",
+    "additiveBlend", "powerSagDepth", "filterLP", "filterHP", "filterRes",
+    "keyTrack", "velMod", "glideTime", "midiNote", "velocity", "pressure",
+    "residualGain",
 ]
-
+PARAM_RANGES = {
+    "osc1Wave": (0.0, 3.0), "osc2Wave": (0.0, 3.0),
+    "osc1Level": (0.0, 1.0), "osc2Level": (0.0, 1.0),
+    "subLevel": (0.0, 1.0), "noiseLevel": (0.0, 1.0),
+    "additiveBlend": (0.0, 1.0), "powerSagDepth": (0.0, 1.0),
+    "filterLP": (0.0, 1.0), "filterHP": (0.0, 1.0),
+    "filterRes": (0.0, 1.0), "keyTrack": (0.0, 1.0),
+    "velMod": (0.0, 1.0), "glideTime": (0.0, 0.5),
+    "midiNote": (0.0, 127.0), "velocity": (0.0, 1.0),
+    "pressure": (0.0, 1.0), "residualGain": (0.0, 1.0),
+}
+_LO = np.asarray([PARAM_RANGES[k][0] for k in PARAM_NAMES], dtype=np.float32)
+_SPAN = np.asarray([PARAM_RANGES[k][1] - PARAM_RANGES[k][0] for k in PARAM_NAMES],
+                   dtype=np.float32)
 
 if HAS_TORCH:
-
     class ParameterController(nn.Module):
-        """
-        Small MLP that predicts the 18-dimensional parameter vector
-        from a fixed-size feature vector (e.g. mel + f0 + rms).
-        """
-
+        """64-feature MLP producing 18 normalised parameter values."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
             super().__init__()
+            if out_dim != len(PARAM_NAMES):
+                raise ValueError(f"out_dim must be {len(PARAM_NAMES)}")
             self.net = nn.Sequential(
-                nn.Linear(in_dim, hidden),
-                nn.ReLU(),
-                nn.Linear(hidden, hidden),
-                nn.ReLU(),
-                nn.Linear(hidden, out_dim),
+                nn.Linear(in_dim, hidden), nn.ReLU(),
+                nn.Linear(hidden, hidden), nn.ReLU(),
+                nn.Linear(hidden, out_dim), nn.Sigmoid(),
             )
-            # Soft constraints via final activation ranges
-            self.out_dim = out_dim
 
         def forward(self, x: torch.Tensor) -> torch.Tensor:
-            raw = self.net(x)
-            # Map most outputs to sensible ranges
-            # osc waves stay continuous [0,3]; levels [0,1]; midiNote around 40-90 etc.
-            return raw
+            return self.net(x)
 
         def predict_dict(self, features: np.ndarray) -> Dict[str, float]:
             self.eval()
             with torch.no_grad():
-                t = torch.from_numpy(features.astype(np.float32)).unsqueeze(0)
-                out = self.forward(t).squeeze(0).numpy()
-            return {name: float(out[i]) for i, name in enumerate(PARAM_NAMES)}
-
+                t = torch.as_tensor(np.asarray(features, dtype=np.float32)).reshape(1, -1)
+                if t.shape[1] != 64:
+                    raise ValueError("controller expects exactly 64 features")
+                normalised = self(t).squeeze(0).cpu().numpy()
+            values = _LO + normalised * _SPAN
+            return {name: float(values[i]) for i, name in enumerate(PARAM_NAMES)}
 else:
-    # Pure-numpy stub so the package still imports
     class ParameterController:
+        """Numpy inference fallback; cannot load or train PyTorch checkpoints."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
-            self.in_dim = in_dim
-            self.out_dim = out_dim
-            # Random weights for demo
+            self.in_dim, self.out_dim = in_dim, out_dim
             rng = np.random.default_rng(42)
-            self.W1 = rng.normal(0, 0.1, (in_dim, hidden))
+            self.W1 = rng.normal(0, 0.05, (in_dim, hidden))
             self.b1 = np.zeros(hidden)
-            self.W2 = rng.normal(0, 0.1, (hidden, hidden))
+            self.W2 = rng.normal(0, 0.05, (hidden, hidden))
             self.b2 = np.zeros(hidden)
-            self.W3 = rng.normal(0, 0.1, (hidden, out_dim))
+            self.W3 = rng.normal(0, 0.02, (hidden, out_dim))
             self.b3 = np.zeros(out_dim)
 
         def forward(self, x: np.ndarray) -> np.ndarray:
+            x = np.asarray(x, dtype=np.float32)
             h = np.maximum(0, x @ self.W1 + self.b1)
             h = np.maximum(0, h @ self.W2 + self.b2)
-            return h @ self.W3 + self.b3
+            raw = h @ self.W3 + self.b3
+            return 1.0 / (1.0 + np.exp(-np.clip(raw, -30, 30)))
 
         def predict_dict(self, features: np.ndarray) -> Dict[str, float]:
-            out = self.forward(features.astype(np.float64))
-            return {name: float(out[i]) for i, name in enumerate(PARAM_NAMES)}
-
+            normalised = self.forward(np.asarray(features).reshape(1, -1))[0]
+            values = _LO + normalised * _SPAN
+            return {name: float(values[i]) for i, name in enumerate(PARAM_NAMES)}
 
 def load_controller(path: Optional[str] = None) -> ParameterController:
-    """
-    Load a trained controller. If path is None or missing, returns a randomly
-    initialised (or zero) controller suitable for demos.
-    """
-    ctrl = ParameterController()
+    """Load a trained PyTorch state dict; never silently substitute random weights."""
     if path is None:
-        return ctrl
-    if HAS_TORCH and path.endswith((".pt", ".pth")):
-        state = torch.load(path, map_location="cpu")
-        ctrl.load_state_dict(state)
-        return ctrl
-    # ONNX path would go here with onnxruntime
-    return ctrl
+        raise ValueError("trained weights are required; train with scripts/train_controller.py")
+    checkpoint_path = Path(path)
+    if not checkpoint_path.is_file():
+        raise FileNotFoundError(f"controller checkpoint not found: {checkpoint_path}")
+    if not HAS_TORCH:
+        raise RuntimeError("PyTorch is required to load controller checkpoints; install .[neural]")
+    if checkpoint_path.suffix.lower() not in {".pt", ".pth"}:
+        raise ValueError("only .pt/.pth state-dict checkpoints are supported")
+    checkpoint = torch.load(checkpoint_path, map_location="cpu", weights_only=True)
+    state = checkpoint.get("state_dict", checkpoint) if isinstance(checkpoint, dict) else checkpoint
+    if not isinstance(state, dict):
+        raise ValueError("checkpoint must contain a state_dict")
+    model = ParameterController()
+    model.load_state_dict(state, strict=True)
+    model.eval()
+    return model
