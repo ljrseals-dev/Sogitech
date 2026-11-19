@@ -33,9 +33,10 @@ def analyse(path: Path):
     flatness = np.asarray(spectral["flatness"])
     features = np.zeros(64, dtype=np.float32)
     features[:8] = [
-        float(np.mean(pitch)), float(np.std(pitch)),
-        float(np.mean(f0[f0 > 0])) if np.any(f0 > 0) else 0.0,
-        float(np.mean(centroid)), float(np.std(centroid)),
+        float(np.mean(pitch) / 127.0), float(np.std(pitch) / 24.0),
+        float(np.mean(f0[f0 > 0]) / 2000.0) if np.any(f0 > 0) else 0.0,
+        float(np.mean(centroid) / (sr * 0.5)),
+        float(np.std(centroid) / (sr * 0.5)),
         float(np.mean(flatness)), float(np.mean(rms)), float(np.std(rms)),
     ]
     rms_mean = float(np.clip(np.mean(rms), 0.0, 1.0))
