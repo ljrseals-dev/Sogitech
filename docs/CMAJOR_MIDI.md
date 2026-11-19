@@ -35,7 +35,7 @@ The current voice policy is intentionally **monophonic**. A note-off only
 releases the currently active pitch; there is no polyphonic voice allocator,
 per-channel MPE state, or overlapping-note stack yet.
 The event callback only updates processor state; sample generation remains in
-the normal audio loop. The sample rate is read from `processor.frequency`,
+the normal audio loop. The note gate uses a 5 ms attack and 20 ms release to reduce clicks. The sample rate is read from `processor.frequency`,
 not hard-coded to 96 kHz.
 
 ## Validation status
