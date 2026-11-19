@@ -81,22 +81,26 @@ processor SogitechCodecProcessor [[ main ]]
                 }
             }
         }
-        else if (std::midi::isPitchWheel (message))
+        else if (std::midi::isPitchWheel (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             pitchBendSemitones = (float (std::midi::getPitchWheelValue (message)) - 8192.0)
                                   * (2.0 / 8192.0);
         }
-        else if (std::midi::isChannelPressure (message))
+        else if (std::midi::isChannelPressure (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             activePressure = std::midi::getFloatChannelPressureValue (message);
             hasMidiPressure = true;
         }
-        else if (std::midi::isAftertouch (message))
+        else if (std::midi::isAftertouch (message)
+                 && (!noteActive || (channel == activeMidiChannel && noteNumber == activeMidiNote)))
         {
             activePressure = std::midi::getFloatAfterTouchValue (message);
             hasMidiPressure = true;
         }
-        else if (std::midi::isController (message))
+        else if (std::midi::isController (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             let cc = std::midi::getControllerNumber (message);
             let ccValue = std::midi::getFloatControllerValue (message);
@@ -136,7 +140,8 @@ processor SogitechCodecProcessor [[ main ]]
                     gateGain = 0.0;
             }
         }
-        else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+        else if ((std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+                 && (!noteActive || channel == activeMidiChannel))
         {
             noteGate = false;
             noteActive = false;
