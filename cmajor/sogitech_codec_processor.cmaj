@@ -42,6 +42,7 @@ processor SogitechCodecProcessor [[ main ]]
     float masterVolume = 1.0;
     int activeMidiNote = -1;
     int activeMidiChannel = -1;
+    int sustainChannel = -1;
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
     float sagMemory = 1.0, loadMemory = 0.0;
     float lp1 = 0.0, bp1 = 0.0, hp1 = 0.0;
@@ -72,7 +73,7 @@ processor SogitechCodecProcessor [[ main ]]
         {
             if (noteActive && noteNumber == activeMidiNote && channel == activeMidiChannel)
             {
-                if (sustainPedal)
+                if (sustainPedal && channel == sustainChannel)
                     pendingNoteRelease = true;
                 else
                 {
@@ -81,22 +82,26 @@ processor SogitechCodecProcessor [[ main ]]
                 }
             }
         }
-        else if (std::midi::isPitchWheel (message))
+        else if (std::midi::isPitchWheel (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             pitchBendSemitones = (float (std::midi::getPitchWheelValue (message)) - 8192.0)
                                   * (2.0 / 8192.0);
         }
-        else if (std::midi::isChannelPressure (message))
+        else if (std::midi::isChannelPressure (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             activePressure = std::midi::getFloatChannelPressureValue (message);
             hasMidiPressure = true;
         }
-        else if (std::midi::isAftertouch (message))
+        else if (std::midi::isAftertouch (message)
+                 && (!noteActive || (channel == activeMidiChannel && noteNumber == activeMidiNote)))
         {
             activePressure = std::midi::getFloatAfterTouchValue (message);
             hasMidiPressure = true;
         }
-        else if (std::midi::isController (message))
+        else if (std::midi::isController (message)
+                 && (!noteActive || channel == activeMidiChannel))
         {
             let cc = std::midi::getControllerNumber (message);
             let ccValue = std::midi::getFloatControllerValue (message);
@@ -119,12 +124,21 @@ processor SogitechCodecProcessor [[ main ]]
             }
             else if (cc == 64)
             {
-                sustainPedal = ccValue >= 0.5;
-                if (!sustainPedal && pendingNoteRelease)
+                if (!sustainPedal || channel == sustainChannel)
                 {
-                    noteGate = false;
-                    noteActive = false;
-                    pendingNoteRelease = false;
+                    sustainPedal = ccValue >= 0.5;
+                    if (sustainPedal)
+                        sustainChannel = channel;
+                    else
+                    {
+                        sustainChannel = -1;
+                        if (pendingNoteRelease)
+                        {
+                            noteGate = false;
+                            noteActive = false;
+                            pendingNoteRelease = false;
+                        }
+                    }
                 }
             }
             else if (cc == 120 || cc == 123)
@@ -132,15 +146,20 @@ processor SogitechCodecProcessor [[ main ]]
                 noteGate = false;
                 noteActive = false;
                 pendingNoteRelease = false;
+                sustainPedal = false;
+                sustainChannel = -1;
                 if (cc == 120)
                     gateGain = 0.0;
             }
         }
-        else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+        else if ((std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+                 && (!noteActive || channel == activeMidiChannel))
         {
             noteGate = false;
             noteActive = false;
             pendingNoteRelease = false;
+            sustainPedal = false;
+            sustainChannel = -1;
             if (std::midi::isAllSoundOff (message))
                 gateGain = 0.0;
         }
