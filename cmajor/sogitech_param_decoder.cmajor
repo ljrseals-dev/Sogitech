@@ -47,7 +47,6 @@ processor SogitechParamDecoder [[ main ]]
     float masterVolume = 1.0;
     int activeMidiNote = -1;
     int activeMidiChannel = -1;
-
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
     float sagMemory = 1.0, loadMemory = 0.0;
     float lp1 = 0.0, bp1 = 0.0, hp1 = 0.0;
@@ -59,6 +58,8 @@ processor SogitechParamDecoder [[ main ]]
         let noteNumber = std::midi::getNoteNumber (message);
         let channel = std::midi::getChannel0to15 (message);
         let velocityValue = std::midi::getFloatVelocity (message);
+
+        // MIDI specifies Note On with velocity zero as Note Off.
         if (std::midi::isNoteOn (message) && velocityValue > 0.0)
         {
             activeMidiNote = noteNumber;
@@ -74,7 +75,8 @@ processor SogitechParamDecoder [[ main ]]
         {
             if (noteActive && noteNumber == activeMidiNote && channel == activeMidiChannel)
             {
-                if (sustainPedal) pendingNoteRelease = true;
+                if (sustainPedal)
+                    pendingNoteRelease = true;
                 else
                 {
                     noteGate = false;
@@ -104,11 +106,20 @@ processor SogitechParamDecoder [[ main ]]
             if (cc == 7)
                 masterVolume = ccValue;
             else if (cc == 1)
-                pressure = ccValue;
+            {
+                activePressure = ccValue;
+                hasMidiPressure = true;
+            }
             else if (cc == 71)
-                filterRes = ccValue;
+            {
+                activeFilterRes = ccValue;
+                hasMidiFilterRes = true;
+            }
             else if (cc == 74)
-                filterLP = 0.05 + ccValue * 0.95;
+            {
+                activeFilterLP = 0.05 + ccValue * 0.95;
+                hasMidiFilterLP = true;
+            }
             else if (cc == 64)
             {
                 sustainPedal = ccValue >= 0.5;
@@ -124,13 +135,17 @@ processor SogitechParamDecoder [[ main ]]
                 noteGate = false;
                 noteActive = false;
                 pendingNoteRelease = false;
-                if (cc == 120) gateGain = 0.0;
+                if (cc == 120)
+                    gateGain = 0.0;
             }
         }
         else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
         {
             noteGate = false;
+            noteActive = false;
             pendingNoteRelease = false;
+            if (std::midi::isAllSoundOff (message))
+                gateGain = 0.0;
         }
     }
 
@@ -167,7 +182,7 @@ processor SogitechParamDecoder [[ main ]]
 
         loop
         {
-            let sourceNote = noteActive ? float (activeMidiNote) : midiNote;
+            let sourceNote = activeMidiNote >= 0 ? float (activeMidiNote) : midiNote;
             let bentNote = clamp (sourceNote + pitchBendSemitones, 0.0, 127.0);
             let velocityValue = hasMidiVelocity ? activeVelocity : velocity;
             let pressureValue = hasMidiPressure ? activePressure : pressure;
