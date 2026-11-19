@@ -1,6 +1,6 @@
 # Cmajor patches and MIDI contract
 
-Two loadable patch manifests are provided:
+Two loadable patch manifests are provided. Their manifests point to canonical `.cmajor` source files (the original `.cmaj` paths are retained as compatibility copies):
 
 - `cmajor/sogitech_codec.cmajorpatch` — full codec processor
 - `cmajor/sogitech_param_decoder.cmajorpatch` — parameter-driven decoder
