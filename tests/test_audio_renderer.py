@@ -2,6 +2,8 @@ import numpy as np
 import pytest
 
 from python.audio import render_parameter_stream
+from python.analysis import estimate_f0, spectral_features
+from python.brute.space import build_space, estimate_cardinality
 from python.neural.controller import PARAM_NAMES, PARAM_RANGES, ParameterController, load_controller
 
 def _frames():
@@ -35,6 +37,14 @@ def test_renderer_rejects_invalid_sample_rate():
     with pytest.raises(ValueError, match="sample_rate"):
         render_parameter_stream(_frames(), [0.0, 0.1], 2048, 1000)
 
+def test_short_analysis_clips_are_supported():
+    audio = np.zeros(128, dtype=np.float32)
+    times, f0 = estimate_f0(audio, 48000)
+    features = spectral_features(audio, 48000)
+    assert len(times) >= 1
+    assert len(f0) == len(times)
+    assert len(features["times"]) >= 1
+
 def test_controller_outputs_stay_inside_parameter_ranges():
     controller = ParameterController()
     params = controller.predict_dict(np.zeros(64, dtype=np.float32))
@@ -46,3 +56,9 @@ def test_controller_outputs_stay_inside_parameter_ranges():
 def test_neural_inference_requires_a_checkpoint():
     with pytest.raises(ValueError, match="trained weights are required"):
         load_controller()
+
+def test_brute_genius_space_is_expanded_and_bounded():
+    space = build_space()
+    assert "quantisation_layout" in space["dimensions"]
+    assert "codec_mode" in space["dimensions"]
+    assert estimate_cardinality(space) <= 50000
