@@ -42,5 +42,6 @@ the normal audio loop. The note gate uses a 5 ms attack and 20 ms release to red
 ## Validation status
 
 The Python CI workflow tests the offline renderer and controller bounds.
-Cmajor source compilation must still be checked with the installed `cmaj`
-toolchain before treating either patch as host-validated.
+The Cmajor compile test covers both patch manifests. Once the Cmajor CLI is
+installed, run `cmaj test cmajor/tests/sogitech_patches.cmajtest` from the
+repository root. Compilation must pass before host playback validation.
