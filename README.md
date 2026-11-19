@@ -51,7 +51,9 @@ remains the authoritative real-time decoder.
   pressure, CC 1/7/71/74 and all-notes/all-sound-off. MIDI handling is currently
   monophonic: a matching note-off releases the active note.
 
-## Cmajor patches and MIDI\n\nSee [docs/CMAJOR_MIDI.md](docs/CMAJOR_MIDI.md) for the patch manifests, MIDI mapping, and the explicit monophonic limitations.\n\n## Training data
+## Cmajor patches and MIDI
+
+See [docs/CMAJOR_MIDI.md](docs/CMAJOR_MIDI.md) for the patch manifests, MIDI mapping, and the explicit monophonic limitations.\n\n## Training data
 
 Use a directory of representative WAV files, with source recordings grouped
 by performer/session when splitting datasets. The training script derives
