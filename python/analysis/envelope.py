@@ -16,7 +16,9 @@ def rms_envelope(
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or frame_length < 1 or hop_length < 1:
+    if (not np.isfinite(sr) or sr <= 0 or not isinstance(frame_length, (int, np.integer))
+            or isinstance(frame_length, bool) or not isinstance(hop_length, (int, np.integer))
+            or isinstance(hop_length, bool) or frame_length < 1 or hop_length < 1):
         raise ValueError("invalid sample rate or envelope frame geometry")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples")
@@ -50,7 +52,8 @@ def harmonic_envelope(
     audio = np.asarray(audio, dtype=np.float64)
     f0 = np.asarray(f0, dtype=np.float64)
     times = np.asarray(times, dtype=np.float64)
-    if sr <= 0 or n_harmonics < 1:
+    if (not np.isfinite(sr) or sr <= 0 or not isinstance(n_harmonics, (int, np.integer))
+            or isinstance(n_harmonics, bool) or n_harmonics < 1):
         raise ValueError("invalid sample rate or harmonic count")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples")
