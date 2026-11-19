@@ -123,6 +123,28 @@ processor SogitechCodecProcessor [[ main ]]
                 }
             }
         }
+        // Panic controllers are channel-scoped too. They must be able to
+        // clear that channel's sustain state even when another channel owns
+        // the current monophonic voice.
+        else if (std::midi::isController (message)
+                 && (std::midi::getControllerNumber (message) == 120
+                     || std::midi::getControllerNumber (message) == 123))
+        {
+            let cc = std::midi::getControllerNumber (message);
+            if (noteActive && channel == activeMidiChannel)
+            {
+                noteGate = false;
+                noteActive = false;
+                pendingNoteRelease = false;
+                if (cc == 120)
+                    gateGain = 0.0;
+            }
+            if (sustainPedal && channel == sustainChannel)
+            {
+                sustainPedal = false;
+                sustainChannel = -1;
+            }
+        }
         else if (std::midi::isController (message)
                  && (!noteActive || channel == activeMidiChannel))
         {
@@ -145,27 +167,22 @@ processor SogitechCodecProcessor [[ main ]]
                 activeFilterLP = 0.05 + ccValue * 0.95;
                 hasMidiFilterLP = true;
             }
-            else if (cc == 120 || cc == 123)
+        }
+        else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
+        {
+            if (noteActive && channel == activeMidiChannel)
             {
                 noteGate = false;
                 noteActive = false;
                 pendingNoteRelease = false;
-                sustainPedal = false;
-                sustainChannel = -1;
-                if (cc == 120)
+                if (std::midi::isAllSoundOff (message))
                     gateGain = 0.0;
             }
-        }
-        else if ((std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
-                 && (!noteActive || channel == activeMidiChannel))
-        {
-            noteGate = false;
-            noteActive = false;
-            pendingNoteRelease = false;
-            sustainPedal = false;
-            sustainChannel = -1;
-            if (std::midi::isAllSoundOff (message))
-                gateGain = 0.0;
+            if (sustainPedal && channel == sustainChannel)
+            {
+                sustainPedal = false;
+                sustainChannel = -1;
+            }
         }
     }
 
