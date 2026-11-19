@@ -1,0 +1,11 @@
+{
+  "CmajorVersion": 1,
+  "ID": "com.ljrseals.sogitech.parameter-decoder",
+  "version": "0.2.0",
+  "name": "Sogitech Parameter Decoder",
+  "description": "MIDI-playable parameter-driven Sogitech hybrid decoder.",
+  "manufacturer": "Lewis James Seals Jr.",
+  "category": "synth",
+  "isInstrument": true,
+  "source": "sogitech_param_decoder.cmaj"
+}
