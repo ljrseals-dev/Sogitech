@@ -1,8 +1,7 @@
-// sogitec-opticlink-hybrid.cmaj
+// sogitech_opticlink_hybrid.cmaj
 // ============================================================
-// Sogitec OpticLink Hybrid
+// Original Sogitec OpticLink Hybrid (kept for reference)
 // 1981 IRCAM Sogitec 4X + Behringer Vintage VA + PowerSag + SOL-DPKVA
-// Ready for Amorph / experimental artists
 // ============================================================
 
 processor SogitecOpticLinkHybrid
@@ -11,7 +10,6 @@ processor SogitecOpticLinkHybrid
     output stream float32 out;
 
     // ==================== ARTIST PARAMETERS ====================
-    // VA Oscillators (Behringer Vintage style)
     input value float osc1Wave     = 1.0;   // 0=sine, 1=saw, 2=square, 3=triangle
     input value float osc2Wave     = 2.0;
     input value float osc1Level    = 0.80;
