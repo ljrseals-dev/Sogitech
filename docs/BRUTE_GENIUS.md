@@ -23,16 +23,16 @@ pruning, so the displayed cardinality is a conservative upper bound.
 | Axis | Choices |
 |---|---|
 | codec_mode | DSP, parameter |
-| pitch_tracker | autocorrelation, librosa pYIN, YIN |
+| pitch_tracker | autocorrelation, librosa pYIN |
 | envelope_method | RMS, peak, Hilbert |
 | residual_strategy | none, high-pass residual, harmonic subtraction |
 | filter_mapping | linear/log centroid, spectral rolloff |
-| quantisation_bits | 4, 6, 8, 12 |
+| quantisation_bits | 4, 8, 12 |
 | quantisation_layout | uniform, perceptual |
 | neural_controller | none, MLP 64×128, MLP 64×256 |
 | objective_primary | spectral L1, multi-resolution STFT, parameter L1, perceptual proxy |
 | sample_rate | 48 kHz, 96 kHz |
-| latency_budget_ms | 5, 10, 20 |
+| latency_budget_ms | 5, 20 |
 
 ## Evaluation protocol
 
