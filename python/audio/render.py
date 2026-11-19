@@ -7,7 +7,7 @@ that parameter and neural demos produce audible, non-placeholder WAV files.
 from __future__ import annotations
 
 import numpy as np
-from scipy.signal import butter, sosfilt
+from scipy.signal import butter, lfilter, sosfilt
 
 PARAM_DEFAULTS = {
     "osc1Wave": 1.0, "osc2Wave": 2.0, "osc1Level": 0.72,
@@ -25,14 +25,13 @@ def _control(frames, times, key, sample_times):
     return np.interp(sample_times, times, values)
 
 def _oscillator(phase, shape):
-    shape = int(np.clip(np.rint(shape), 0, 3))
-    if shape == 0:
-        return np.sin(phase)
-    if shape == 1:
-        return (phase / np.pi) - 1.0
-    if shape == 2:
-        return np.where(np.sin(phase) >= 0.0, 1.0, -1.0)
-    return 1.0 - (2.0 / np.pi) * np.arccos(np.clip(np.sin(phase), -1.0, 1.0))
+    shape = np.clip(np.rint(shape), 0, 3)
+    sine = np.sin(phase)
+    saw = (phase / np.pi) - 1.0
+    square = np.where(sine >= 0.0, 1.0, -1.0)
+    triangle = 1.0 - (2.0 / np.pi) * np.arccos(np.clip(sine, -1.0, 1.0))
+    return np.select([shape == 0, shape == 1, shape == 2],
+                     [sine, saw, square], default=triangle)
 
 def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed=7,
                             residual=None):
@@ -46,9 +45,10 @@ def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed
     frame_times = np.asarray(times, dtype=np.float64)
     if frame_times.ndim != 1 or len(frame_times) != len(frames):
         raise ValueError("times must contain one timestamp per frame")
-    if not np.all(np.isfinite(frame_times)) or np.any(np.diff(frame_times) <= 0):
-        if len(frame_times) != 1:
-            raise ValueError("frame times must be finite and strictly increasing")
+    if not np.all(np.isfinite(frame_times)):
+        raise ValueError("frame times must be finite")
+    if len(frame_times) > 1 and np.any(np.diff(frame_times) <= 0):
+        raise ValueError("frame times must be strictly increasing")
     duration = sample_count / float(sample_rate)
     sample_times = np.arange(sample_count, dtype=np.float64) / sample_rate
     if len(frame_times) == 1:
@@ -77,11 +77,7 @@ def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed
     signal += rng.standard_normal(sample_count) * np.clip(p["noiseLevel"], 0, 0.5)
 
     # Power-sag envelope, followed by a stable fixed-cutoff Butterworth stage.
-    load = np.empty(sample_count, dtype=np.float64)
-    memory = 0.0
-    for i, value in enumerate(np.abs(signal)):
-        memory = 0.992 * memory + 0.008 * value
-        load[i] = memory
+    load = lfilter([0.008], [1.0, -0.992], np.abs(signal))
     sag = np.clip(1.0 - np.clip(p["powerSagDepth"], 0, 1) * load * 0.8, 0.35, 1.0)
     signal *= sag * np.clip(p["velocity"], 0, 1) * (0.65 + 0.35 * np.clip(p["pressure"], 0, 1))
 
