@@ -28,11 +28,12 @@ messages:
 | CC 7 | Master output level |
 | CC 71 | Filter resonance |
 | CC 74 | Filter cutoff |
+| CC 64 | Sustain pedal; defers matching note-off until pedal release |
 | CC 120 / CC 123 | Immediate voice release |
 
 The current voice policy is intentionally **monophonic**. A note-off only
 releases the currently active pitch; there is no polyphonic voice allocator,
-per-channel MPE state, sustain-pedal latch, or overlapping-note stack yet.
+per-channel MPE state, or overlapping-note stack yet.
 The event callback only updates processor state; sample generation remains in
 the normal audio loop. The sample rate is read from `processor.frequency`,
 not hard-coded to 96 kHz.
