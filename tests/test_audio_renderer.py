@@ -158,3 +158,7 @@ def test_analysis_rejects_non_integer_frame_geometry():
         rms_envelope(audio, 48000, frame_length=1024.5)
     with pytest.raises(ValueError, match="STFT frame geometry"):
         spectral_features(audio, 48000, n_fft=2048.5)
+
+def test_brute_cardinality_rejects_empty_explicit_space():
+    with pytest.raises(ValueError, match="dimensions must be a non-empty object"):
+        estimate_cardinality({})
