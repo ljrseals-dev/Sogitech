@@ -100,6 +100,29 @@ processor SogitechCodecProcessor [[ main ]]
             activePressure = std::midi::getFloatAfterTouchValue (message);
             hasMidiPressure = true;
         }
+        // Sustain belongs to its own MIDI channel, not necessarily the
+        // currently selected monophonic voice channel.
+        else if (std::midi::isController (message)
+                 && std::midi::getControllerNumber (message) == 64)
+        {
+            let ccValue = std::midi::getFloatControllerValue (message);
+            if (!sustainPedal || channel == sustainChannel)
+            {
+                sustainPedal = ccValue >= 0.5;
+                if (sustainPedal)
+                    sustainChannel = channel;
+                else
+                {
+                    sustainChannel = -1;
+                    if (pendingNoteRelease && channel == activeMidiChannel)
+                    {
+                        noteGate = false;
+                        noteActive = false;
+                        pendingNoteRelease = false;
+                    }
+                }
+            }
+        }
         else if (std::midi::isController (message)
                  && (!noteActive || channel == activeMidiChannel))
         {
@@ -121,25 +144,6 @@ processor SogitechCodecProcessor [[ main ]]
             {
                 activeFilterLP = 0.05 + ccValue * 0.95;
                 hasMidiFilterLP = true;
-            }
-            else if (cc == 64)
-            {
-                if (!sustainPedal || channel == sustainChannel)
-                {
-                    sustainPedal = ccValue >= 0.5;
-                    if (sustainPedal)
-                        sustainChannel = channel;
-                    else
-                    {
-                        sustainChannel = -1;
-                        if (pendingNoteRelease)
-                        {
-                            noteGate = false;
-                            noteActive = false;
-                            pendingNoteRelease = false;
-                        }
-                    }
-                }
             }
             else if (cc == 120 || cc == 123)
             {
