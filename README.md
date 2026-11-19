@@ -30,7 +30,7 @@ python scripts/demo_neural_codec.py --input examples/demo.wav --weights weights/
 python -m python.brute.plan --max-cost-usd 5
 ```
 
-The parameter and neural demos now render audible WAV output using the deterministic
+The parameter and neural demos render audible WAV output using the deterministic
 offline reference renderer in `python/audio/render.py`; they no longer write
 silent placeholder files. The renderer is a Python reference implementation,
 not a bit-exact replacement for the real-time Cmajor DSP. The Cmajor processor
@@ -48,12 +48,22 @@ remains the authoritative real-time decoder.
 - **Cmajor decoder:** implements the hybrid VA/additive oscillator, PowerSag,
   dual-pole filter and optional residual mix. Both decoder processors accept
   raw `std::midi::Message` events for note on/off, pitch bend, channel/poly
-  pressure, CC 1/7/71/74 and all-notes/all-sound-off. MIDI handling is currently
+  pressure, CC 1/7/64/71/74 and panic releases. MIDI handling is currently
   monophonic: a matching note-off releases the active note.
 
 ## Cmajor patches and MIDI
 
-See [docs/CMAJOR_MIDI.md](docs/CMAJOR_MIDI.md) for the patch manifests, MIDI mapping, and the explicit monophonic limitations.\n\n## Training data
+See [docs/CMAJOR_MIDI.md](docs/CMAJOR_MIDI.md) for the patch manifests, MIDI
+mapping, and the explicit monophonic limitations.
+
+After installing the Cmajor command-line toolchain, run either patch:
+
+```bash
+cmaj play cmajor/sogitech_codec.cmajorpatch
+cmaj play cmajor/sogitech_param_decoder.cmajorpatch
+```
+
+## Training data
 
 Use a directory of representative WAV files, with source recordings grouped
 by performer/session when splitting datasets. The training script derives
@@ -66,6 +76,11 @@ the demo deliberately refuses to substitute random weights.
 See [docs/BRUTE_GENIUS.md](docs/BRUTE_GENIUS.md). The local planner reports a
 conservative Cartesian upper bound and an illustrative cost estimate. It does
 not launch Brute Genius jobs or provision external workers.
+
+## Validation
+
+Python CI covers Python 3.10–3.12. The Cmajor patch sources still require
+compilation with the installed `cmaj` toolchain before host validation.
 
 ## License
 
