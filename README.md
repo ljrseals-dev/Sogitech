@@ -48,7 +48,7 @@ remains the authoritative real-time decoder.
 - **Cmajor decoder:** implements the hybrid VA/additive oscillator, PowerSag,
   dual-pole filter and optional residual mix. Both decoder processors accept
   raw `std::midi::Message` events for note on/off, pitch bend, channel/poly
-  pressure, CC 1/7/64/71/74 and panic releases. MIDI handling is currently
+  pressure, CC 1/7/64/71/74 and panic handling. Velocity-zero note-on is treated as note-off; note releases are channel/pitch matched. MIDI handling is currently
   monophonic: a matching note-off releases the active note.
 
 ## Cmajor patches and MIDI
