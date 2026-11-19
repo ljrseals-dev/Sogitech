@@ -60,8 +60,14 @@ def estimate_filter_params(
     Map spectral features onto the normalised filter controls of the hybrid engine.
     filterLP / filterHP are in [0, 1] as expected by the Cmajor processor.
     """
-    centroid = features["centroid"]
-    flatness = features["flatness"]
+    if sr <= 0:
+        raise ValueError("sample rate must be positive")
+    centroid = np.asarray(features["centroid"], dtype=np.float64)
+    flatness = np.asarray(features["flatness"], dtype=np.float64)
+    if centroid.ndim != 1 or flatness.ndim != 1 or centroid.size == 0 or centroid.shape != flatness.shape:
+        raise ValueError("centroid and flatness must be non-empty one-dimensional arrays of equal length")
+    if not np.all(np.isfinite(centroid)) or not np.all(np.isfinite(flatness)):
+        raise ValueError("spectral features must contain finite values")
 
     # Map centroid (Hz) roughly onto LP cutoff control
     # 180 Hz → ~0.0, 18 kHz → ~1.0
