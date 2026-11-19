@@ -29,7 +29,7 @@ processor SogitechParamDecoder [[ main ]]
     input value float residualGain = 0.0;
 
     // Monophonic MIDI policy: only a note-off matching the active pitch
-    // releases the voice. MIDI CC 120/123 are unconditional panic releases.
+    // releases the voice. MIDI CC 120/123 are channel-scoped panic releases.
     bool noteGate = false;
     bool noteActive = false;
     bool sustainPedal = false;
