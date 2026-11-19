@@ -33,9 +33,13 @@ messages:
 | CC 120 | Immediate all-sound-off on that channel (hard gate reset) |
 | CC 123 | All-notes-off on that channel (smoothed release) |
 
-The current voice policy is intentionally **monophonic**. A note-off only
-releases the currently active pitch; there is no polyphonic voice allocator,
-per-channel MPE state, or overlapping-note stack yet. Note-off matching includes MIDI channel and pitch; pitch, pressure and controller events are scoped to the active channel while a note is held. Sustain state is tracked against its MIDI channel; panic messages clear only the sustain state on their own channel. Note-on velocity zero is treated as note-off; note-off matching includes MIDI channel and pitch.
+The current voice policy is intentionally **monophonic**, preserving the
+vintage home-studio instrument topology and its original constrained signal
+routing. This is a design choice, not an unfinished polyphony feature. A
+note-off only releases the currently active pitch; there is no polyphonic
+voice allocator, per-channel MPE state, or overlapping-note stack. Any future
+polyphonic or multichannel expansion should be a separate mode that leaves
+the legacy path unchanged. Note-off matching includes MIDI channel and pitch; pitch, pressure and controller events are scoped to the active channel while a note is held. Sustain state is tracked against its MIDI channel; panic messages clear only the sustain state on their own channel. Note-on velocity zero is treated as note-off; note-off matching includes MIDI channel and pitch.
 The event callback only updates processor state; sample generation remains in
 the normal audio loop. The note gate uses a 5 ms attack and 20 ms release to reduce clicks. Power sag follows a load-dependent target with a 150 ms recovery time, so attenuation recovers after loud passages. The sample rate is read from `processor.frequency`, not hard-coded to 96 kHz.
 
