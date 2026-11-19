@@ -55,7 +55,14 @@ def build_space(overrides: dict[str, list[Any]] | None = None) -> dict[str, Any]
 def estimate_cardinality(space: dict[str, Any] | None = None) -> int:
     """Return the unconstrained Cartesian upper bound for the dimensions."""
     selected = space or SOGITECH_CODEC_SPACE
+    if not isinstance(selected, dict):
+        raise ValueError("search space must be an object")
     dimensions = selected.get("dimensions", {})
-    if not dimensions or any(not values for values in dimensions.values()):
-        raise ValueError("every search dimension must contain at least one value")
+    if not isinstance(dimensions, dict) or not dimensions:
+        raise ValueError("dimensions must be a non-empty object")
+    for name, values in dimensions.items():
+        if not isinstance(name, str) or not name:
+            raise ValueError("dimension names must be non-empty strings")
+        if not isinstance(values, list) or not values:
+            raise ValueError(f"dimension {name} must contain a non-empty list")
     return prod(len(values) for values in dimensions.values())
