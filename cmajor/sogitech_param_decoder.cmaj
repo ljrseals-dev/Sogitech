@@ -31,6 +31,8 @@ processor SogitechParamDecoder [[ main ]]
     // Monophonic MIDI policy: only a note-off matching the active pitch
     // releases the voice. MIDI CC 120/123 are unconditional panic releases.
     bool noteGate = true;
+    bool sustainPedal = false;
+    bool pendingNoteRelease = false;
     float pitchBendSemitones = 0.0;
     float masterVolume = 1.0;
 
@@ -47,11 +49,15 @@ processor SogitechParamDecoder [[ main ]]
             midiNote = float (std::midi::getNoteNumber (message));
             velocity = std::midi::getFloatVelocity (message);
             noteGate = true;
+            pendingNoteRelease = false;
         }
         else if (std::midi::isNoteOff (message))
         {
             if (std::midi::getNoteNumber (message) == int (midiNote))
-                noteGate = false;
+            {
+                if (sustainPedal) pendingNoteRelease = true;
+                else noteGate = false;
+            }
         }
         else if (std::midi::isPitchWheel (message))
         {
@@ -84,6 +90,7 @@ processor SogitechParamDecoder [[ main ]]
         else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
         {
             noteGate = false;
+            pendingNoteRelease = false;
         }
     }
 
