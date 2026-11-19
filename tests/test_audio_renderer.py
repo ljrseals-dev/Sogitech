@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from python.audio import render_parameter_stream
+from python.neural.controller import PARAM_NAMES, PARAM_RANGES, ParameterController, load_controller
 
 def _frames():
     base = {
@@ -11,8 +12,7 @@ def _frames():
         "filterHP": 0.02, "filterRes": 0.2, "midiNote": 69,
         "velocity": 0.8, "pressure": 0.0, "residualGain": 0.0,
     }
-    other = dict(base, midiNote=72, filterLP=0.65)
-    return [base, other]
+    return [base, dict(base, midiNote=72, filterLP=0.65)]
 
 def test_parameter_stream_produces_finite_audible_audio():
     audio = render_parameter_stream(_frames(), [0.0, 0.08], 4096, 48000, seed=11)
@@ -34,3 +34,15 @@ def test_renderer_rejects_non_monotonic_times():
 def test_renderer_rejects_invalid_sample_rate():
     with pytest.raises(ValueError, match="sample_rate"):
         render_parameter_stream(_frames(), [0.0, 0.1], 2048, 1000)
+
+def test_controller_outputs_stay_inside_parameter_ranges():
+    controller = ParameterController()
+    params = controller.predict_dict(np.zeros(64, dtype=np.float32))
+    assert set(params) == set(PARAM_NAMES)
+    for key, value in params.items():
+        low, high = PARAM_RANGES[key]
+        assert low <= value <= high
+
+def test_neural_inference_requires_a_checkpoint():
+    with pytest.raises(ValueError, match="trained weights are required"):
+        load_controller()
