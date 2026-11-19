@@ -162,3 +162,11 @@ def test_analysis_rejects_non_integer_frame_geometry():
 def test_brute_cardinality_rejects_empty_explicit_space():
     with pytest.raises(ValueError, match="dimensions must be a non-empty object"):
         estimate_cardinality({})
+
+def test_controller_rejects_incompatible_architecture_dimensions():
+    with pytest.raises(ValueError, match="in_dim must be 64"):
+        ParameterController(in_dim=32)
+    with pytest.raises(ValueError, match="hidden must be a positive integer"):
+        ParameterController(hidden=0)
+    with pytest.raises(ValueError, match="out_dim must be 18"):
+        ParameterController(out_dim=17)
