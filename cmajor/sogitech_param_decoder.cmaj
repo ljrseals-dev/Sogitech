@@ -84,8 +84,20 @@ processor SogitechParamDecoder [[ main ]]
                 filterRes = ccValue;
             else if (cc == 74)
                 filterLP = 0.05 + ccValue * 0.95;
+            else if (cc == 64)
+            {
+                sustainPedal = ccValue >= 0.5;
+                if (!sustainPedal && pendingNoteRelease)
+                {
+                    noteGate = false;
+                    pendingNoteRelease = false;
+                }
+            }
             else if (cc == 120 || cc == 123)
+            {
                 noteGate = false;
+                pendingNoteRelease = false;
+            }
         }
         else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
         {
