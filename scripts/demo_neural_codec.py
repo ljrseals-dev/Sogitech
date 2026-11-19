@@ -15,10 +15,11 @@ def make_feature_vector(audio: np.ndarray, sr: int) -> np.ndarray:
     feats=spectral_features(audio,sr); _,rms=rms_envelope(audio,sr)
     voiced=f0>0
     vec=np.array([
-        float(np.mean(midi[voiced])) if np.any(voiced) else 60.0,
-        float(np.std(midi[voiced])) if np.any(voiced) else 0.0,
-        float(np.mean(f0[voiced])) if np.any(voiced) else 0.0,
-        float(np.mean(feats["centroid"])),float(np.std(feats["centroid"])),
+        (float(np.mean(midi[voiced])) / 127.0) if np.any(voiced) else (60.0 / 127.0),
+        (float(np.std(midi[voiced])) / 24.0) if np.any(voiced) else 0.0,
+        (float(np.mean(f0[voiced])) / 2000.0) if np.any(voiced) else 0.0,
+        float(np.mean(feats["centroid"])) / (sr * 0.5),
+        float(np.std(feats["centroid"])) / (sr * 0.5),
         float(np.mean(feats["flatness"])),float(np.mean(rms)),float(np.std(rms)),
     ],dtype=np.float32)
     return np.pad(vec,(0,56))
