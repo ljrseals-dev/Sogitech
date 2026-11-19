@@ -19,7 +19,9 @@ def residual_energy(
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or frame_length < 1 or hop_length < 1:
+    if (not np.isfinite(sr) or sr <= 0 or not isinstance(frame_length, (int, np.integer))
+            or isinstance(frame_length, bool) or not isinstance(hop_length, (int, np.integer))
+            or isinstance(hop_length, bool) or frame_length < 1 or hop_length < 1):
         raise ValueError("invalid sample rate or residual frame geometry")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples")
@@ -66,7 +68,7 @@ def extract_residual(
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or audio.size == 0 or not np.all(np.isfinite(audio)):
+    if not np.isfinite(sr) or sr <= 0 or audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples and sample rate must be positive")
     if sr <= 5000:
         return audio.astype(np.float32)
