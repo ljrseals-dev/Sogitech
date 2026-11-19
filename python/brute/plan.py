@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import json
+import math
 from pathlib import Path
 from .space import SOGITECH_CODEC_SPACE, build_space, estimate_cardinality
 
@@ -11,8 +12,9 @@ def main():
     parser.add_argument("--max-cost-usd",type=float,default=5.0)
     parser.add_argument("--cost-per-combo-usd",type=float,default=0.00015)
     args=parser.parse_args()
-    if args.max_cost_usd < 0 or args.cost_per_combo_usd < 0:
-        parser.error("cost limits cannot be negative")
+    if (not math.isfinite(args.max_cost_usd) or not math.isfinite(args.cost_per_combo_usd)
+            or args.max_cost_usd < 0 or args.cost_per_combo_usd < 0):
+        parser.error("cost limits must be finite and cannot be negative")
     if args.space:
         path=Path(args.space)
         if not path.is_file(): parser.error(f"space file not found: {path}")
@@ -22,14 +24,27 @@ def main():
             parser.error(f"cannot read space file: {exc}")
     else:
         space=build_space()
+    if not isinstance(space, dict):
+        parser.error("search space must be a JSON object")
     try:
         cardinality=estimate_cardinality(space)
     except (KeyError,TypeError,ValueError) as exc:
         parser.error(f"invalid search space: {exc}")
-    limits = [item["max_combinations"] for item in space.get("constraints", [])
+    constraints = space.get("constraints", [])
+    if not isinstance(constraints, list):
+        parser.error("constraints must be a list")
+    limits = [item["max_combinations"] for item in constraints
               if isinstance(item, dict) and "max_combinations" in item]
-    max_combinations = min(limits, default=50000)
-    estimated=cardinality*args.cost_per_combo_usd
+    if any(not isinstance(limit, int) or isinstance(limit, bool) or limit < 1
+           for limit in limits):
+        parser.error("max_combinations constraints must be positive integers")
+    max_combinations = min([50000, *limits])
+    try:
+        estimated=cardinality*args.cost_per_combo_usd
+    except OverflowError:
+        parser.error("estimated cost overflowed; reduce the search space or cost assumption")
+    if not math.isfinite(estimated):
+        parser.error("estimated cost is not finite; reduce the search space or cost assumption")
     print("=== Sogitech Codec – Brute Genius Plan ===")
     print(f"Space           : {space.get('name','unnamed')}")
     print(f"Cartesian upper : {cardinality:,}")
