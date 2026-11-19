@@ -54,7 +54,7 @@ def build_space(overrides: dict[str, list[Any]] | None = None) -> dict[str, Any]
 
 def estimate_cardinality(space: dict[str, Any] | None = None) -> int:
     """Return the unconstrained Cartesian upper bound for the dimensions."""
-    selected = space or SOGITECH_CODEC_SPACE
+    selected = SOGITECH_CODEC_SPACE if space is None else space
     if not isinstance(selected, dict):
         raise ValueError("search space must be an object")
     dimensions = selected.get("dimensions", {})
