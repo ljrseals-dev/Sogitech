@@ -123,11 +123,18 @@ def test_controller_rejects_non_finite_feature_vector():
     with pytest.raises(ValueError, match="finite"):
         controller.predict_dict(features)
 
-def test_custom_brute_space_cannot_override_hard_candidate_ceiling():
+def test_custom_brute_space_cannot_override_hard_candidate_ceiling(tmp_path, capsys):
     from python.brute.plan import main
     from unittest.mock import patch
     import json
-    from pathlib import Path
-    with patch("sys.argv", ["plan", "--max-cost-usd", "1000000000"]):
-        with pytest.raises(SystemExit):
-            main()
+
+    space = {
+        "name": "oversized",
+        "dimensions": {f"axis_{i}": list(range(10)) for i in range(5)},
+        "constraints": [{"max_combinations": 1000000}],
+    }
+    path = tmp_path / "oversized.json"
+    path.write_text(json.dumps(space), encoding="utf-8")
+    with patch("sys.argv", ["plan", "--space", str(path), "--max-cost-usd", "1000000000"]):
+        main()
+    assert "REFUSED: Cartesian upper bound exceeds" in capsys.readouterr().out
