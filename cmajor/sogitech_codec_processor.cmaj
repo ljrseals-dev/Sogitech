@@ -26,6 +26,8 @@ processor SogitechCodecProcessor [[ main ]]
     input value float dryWet = 1.0;
 
     bool noteGate = true;
+    bool sustainPedal = false;
+    bool pendingNoteRelease = false;
     float pitchBendSemitones = 0.0;
     float masterVolume = 1.0;
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
@@ -43,11 +45,15 @@ processor SogitechCodecProcessor [[ main ]]
             midiNote = float (std::midi::getNoteNumber (message));
             velocity = std::midi::getFloatVelocity (message);
             noteGate = true;
+            pendingNoteRelease = false;
         }
         else if (std::midi::isNoteOff (message))
         {
             if (std::midi::getNoteNumber (message) == int (midiNote))
-                noteGate = false;
+            {
+                if (sustainPedal) pendingNoteRelease = true;
+                else noteGate = false;
+            }
         }
         else if (std::midi::isPitchWheel (message))
         {
@@ -66,7 +72,20 @@ processor SogitechCodecProcessor [[ main ]]
             else if (cc == 1) pressure = ccValue;
             else if (cc == 71) filterRes = ccValue;
             else if (cc == 74) filterLP = 0.05 + ccValue * 0.95;
-            else if (cc == 120 || cc == 123) noteGate = false;
+            else if (cc == 64)
+            {
+                sustainPedal = ccValue >= 0.5;
+                if (!sustainPedal && pendingNoteRelease)
+                {
+                    noteGate = false;
+                    pendingNoteRelease = false;
+                }
+            }
+            else if (cc == 120 || cc == 123)
+            {
+                noteGate = false;
+                pendingNoteRelease = false;
+            }
         }
         else if (std::midi::isAllNotesOff (message) || std::midi::isAllSoundOff (message))
             noteGate = false;
