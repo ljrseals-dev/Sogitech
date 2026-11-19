@@ -138,3 +138,23 @@ def test_custom_brute_space_cannot_override_hard_candidate_ceiling(tmp_path, cap
     with patch("sys.argv", ["plan", "--space", str(path), "--max-cost-usd", "1000000000"]):
         main()
     assert "REFUSED: Cartesian upper bound exceeds" in capsys.readouterr().out
+
+@pytest.mark.parametrize("invalid_rate", [np.nan, np.inf])
+def test_analysis_rejects_non_finite_sample_rates(invalid_rate):
+    audio = np.ones(2048, dtype=np.float32)
+    with pytest.raises(ValueError, match="sample rate"):
+        rms_envelope(audio, invalid_rate)
+    with pytest.raises(ValueError, match="sample rate"):
+        residual_energy(audio, invalid_rate)
+    with pytest.raises(ValueError, match="sample rate"):
+        spectral_features(audio, invalid_rate)
+    with pytest.raises(ValueError, match="sample rate"):
+        estimate_filter_params({"centroid": np.array([1000.0]),
+                                "flatness": np.array([0.1])}, invalid_rate)
+
+def test_analysis_rejects_non_integer_frame_geometry():
+    audio = np.ones(2048, dtype=np.float32)
+    with pytest.raises(ValueError, match="frame geometry"):
+        rms_envelope(audio, 48000, frame_length=1024.5)
+    with pytest.raises(ValueError, match="STFT frame geometry"):
+        spectral_features(audio, 48000, n_fft=2048.5)
