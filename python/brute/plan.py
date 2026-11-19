@@ -30,13 +30,21 @@ def main():
         cardinality=estimate_cardinality(space)
     except (KeyError,TypeError,ValueError) as exc:
         parser.error(f"invalid search space: {exc}")
-    limits = [item["max_combinations"] for item in space.get("constraints", [])
+    constraints = space.get("constraints", [])
+    if not isinstance(constraints, list):
+        parser.error("constraints must be a list")
+    limits = [item["max_combinations"] for item in constraints
               if isinstance(item, dict) and "max_combinations" in item]
     if any(not isinstance(limit, int) or isinstance(limit, bool) or limit < 1
            for limit in limits):
         parser.error("max_combinations constraints must be positive integers")
     max_combinations = min([50000, *limits])
-    estimated=cardinality*args.cost_per_combo_usd
+    try:
+        estimated=cardinality*args.cost_per_combo_usd
+    except OverflowError:
+        parser.error("estimated cost overflowed; reduce the search space or cost assumption")
+    if not math.isfinite(estimated):
+        parser.error("estimated cost is not finite; reduce the search space or cost assumption")
     print("=== Sogitech Codec – Brute Genius Plan ===")
     print(f"Space           : {space.get('name','unnamed')}")
     print(f"Cartesian upper : {cardinality:,}")
