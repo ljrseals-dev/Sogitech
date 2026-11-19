@@ -25,6 +25,10 @@ def _control(frames, times, key, sample_times):
     return np.interp(sample_times, times, values)
 
 def _oscillator(phase, shape):
+    # Phase is accumulated across the entire render, so wrap it before
+    # evaluating discontinuous waveforms. Without this, sawtooth amplitude
+    # grows without bound after the first cycle.
+    phase = np.remainder(phase, 2.0 * np.pi)
     shape = np.clip(np.rint(shape), 0, 3)
     sine = np.sin(phase)
     saw = (phase / np.pi) - 1.0
@@ -36,9 +40,9 @@ def _oscillator(phase, shape):
 def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed=7,
                             residual=None):
     """Render parameter frames to mono float32 audio."""
-    if sample_rate < 8000 or sample_rate > 192000:
-        raise ValueError("sample_rate must be between 8000 and 192000 Hz")
-    if sample_count < 1:
+    if not np.isfinite(sample_rate) or sample_rate < 8000 or sample_rate > 192000:
+        raise ValueError("sample_rate must be finite and between 8000 and 192000 Hz")
+    if not isinstance(sample_count, (int, np.integer)) or sample_count < 1:
         raise ValueError("sample_count must be positive")
     if not frames:
         raise ValueError("at least one parameter frame is required")
@@ -92,6 +96,8 @@ def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed
         dry = np.asarray(residual, dtype=np.float64).reshape(-1)
         if len(dry) != sample_count:
             raise ValueError("residual length must match sample_count")
+        if not np.all(np.isfinite(dry)):
+            raise ValueError("residual must contain only finite samples")
         signal += dry * np.clip(p["residualGain"], 0, 1)
 
     signal = np.tanh(signal * 0.8)
