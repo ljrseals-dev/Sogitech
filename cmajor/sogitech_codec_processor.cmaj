@@ -28,6 +28,7 @@ processor SogitechCodecProcessor [[ main ]]
     bool noteGate = true;
     bool sustainPedal = false;
     bool pendingNoteRelease = false;
+    float gateGain = 1.0;
     float pitchBendSemitones = 0.0;
     float masterVolume = 1.0;
     float osc1Phase = 0.0, osc2Phase = 0.0, subPhase = 0.0;
@@ -164,9 +165,11 @@ processor SogitechCodecProcessor [[ main ]]
             let filtered = lp2 * 0.72 + hp2 * 0.28;
             let synth = filtered * 0.78;
             let residual = in * residualGain;
-            let gate = noteGate ? 1.0 : 0.0;
+            let gateTarget = noteGate ? 1.0 : 0.0;
+            let gateCoeff = exp (-1.0 / ((noteGate ? 0.005 : 0.020) * sampleRate));
+            gateGain = gateTarget + (gateGain - gateTarget) * gateCoeff;
             out <- (1.0 - dryWet) * residual
-                 + dryWet * (synth * gate * masterVolume + residual * 0.3);
+                 + dryWet * (synth * gateGain * masterVolume + residual * 0.3);
             advance();
         }
     }
