@@ -10,7 +10,7 @@ latency budget. The full Cartesian upper bound is intentionally capped at
 
 ```bash
 python -m python.brute.plan --max-cost-usd 5
-python -m python.brute.plan --space spaces/sogitech_codec_space.json
+python -m python.brute.plan --space path/to/custom_space.json
 ```
 
 The planner is local and read-only. It estimates a cost from a configurable
@@ -30,7 +30,7 @@ pruning, so the displayed cardinality is a conservative upper bound.
 | quantisation_bits | 4, 8, 12 |
 | quantisation_layout | uniform, perceptual |
 | neural_controller | none, MLP 64×128, MLP 64×256 |
-| objective_primary | spectral L1, multi-resolution STFT, parameter L1, perceptual proxy |
+| objective_primary | spectral L1, multi-resolution STFT, perceptual proxy |
 | sample_rate | 48 kHz, 96 kHz |
 | latency_budget_ms | 5, 20 |
 
