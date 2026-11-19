@@ -38,6 +38,10 @@ if HAS_TORCH:
         """64-feature MLP producing 18 normalised parameter values."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
             super().__init__()
+            if in_dim != 64:
+                raise ValueError("in_dim must be 64 for the Sogitech feature contract")
+            if not isinstance(hidden, int) or isinstance(hidden, bool) or hidden < 1:
+                raise ValueError("hidden must be a positive integer")
             if out_dim != len(PARAM_NAMES):
                 raise ValueError(f"out_dim must be {len(PARAM_NAMES)}")
             self.net = nn.Sequential(
@@ -65,6 +69,12 @@ else:
     class ParameterController:
         """Numpy inference fallback; cannot load or train PyTorch checkpoints."""
         def __init__(self, in_dim: int = 64, hidden: int = 128, out_dim: int = 18):
+            if in_dim != 64:
+                raise ValueError("in_dim must be 64 for the Sogitech feature contract")
+            if not isinstance(hidden, int) or isinstance(hidden, bool) or hidden < 1:
+                raise ValueError("hidden must be a positive integer")
+            if out_dim != len(PARAM_NAMES):
+                raise ValueError(f"out_dim must be {len(PARAM_NAMES)}")
             self.in_dim, self.out_dim = in_dim, out_dim
             rng = np.random.default_rng(42)
             self.W1 = rng.normal(0, 0.05, (in_dim, hidden))
