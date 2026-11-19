@@ -1,0 +1,11 @@
+{
+    "CmajorVersion": 1,
+    "ID": "dev.ljrseals.sogitech.paramdecoder",
+    "version": "0.1.0",
+    "name": "Sogitech Param Decoder",
+    "description": "Parameter-driven decoder for the Sogitech Codec. Driven by analysis / neural / packed parameter vectors. Hybrid 32-harmonic additive + VA + PowerSag + SOL-DPKVA dual-pole filter.",
+    "manufacturer": "ljrseals-dev",
+    "category": "synth",
+    "isInstrument": true,
+    "source": "SogitechParamDecoder.cmajor"
+}

@@ -18,15 +18,8 @@ def estimate_f0(
     Simple autocorrelation-based f0 estimator (robust enough for the codec demo).
     Returns (times, f0_hz). Unvoiced frames are set to 0.
     """
-    audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or frame_length < 2 or hop_length < 1 or fmin <= 0 or fmax <= fmin:
-        raise ValueError("invalid sample rate, frame geometry, or pitch range")
-    if audio.size == 0 or not np.all(np.isfinite(audio)):
-        raise ValueError("audio must contain finite samples")
-    if audio.size < frame_length:
-        audio = np.pad(audio, (0, frame_length - audio.size))
 
     # Prefer librosa if available for better quality
     try:
@@ -46,7 +39,7 @@ def estimate_f0(
         pass
 
     # Fallback pure-numpy autocorrelation
-    n_frames = 1 + max(0, (len(audio) - frame_length) // hop_length)
+    n_frames = 1 + (len(audio) - frame_length) // hop_length
     f0 = np.zeros(n_frames, dtype=np.float64)
     times = np.arange(n_frames) * hop_length / sr
 

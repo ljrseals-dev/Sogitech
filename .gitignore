@@ -6,12 +6,8 @@ venv/
 .env
 *.wav
 !examples/demo.wav
-out/
 out_*.wav
 out_*.params.*
-*.params.json
-*.neural_params.json
-*.params.csv
 .DS_Store
 .idea/
 .vscode/

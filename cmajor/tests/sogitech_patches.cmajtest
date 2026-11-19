@@ -1,3 +1,0 @@
-// Compile both shipping patch manifests with the official Cmajor test runner.
-## testPatch ("../sogitech_codec.cmajorpatch")
-## testPatch ("../sogitech_param_decoder.cmajorpatch")

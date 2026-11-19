@@ -1,0 +1,11 @@
+{
+    "CmajorVersion": 1,
+    "ID": "dev.ljrseals.sogitech.codecprocessor",
+    "version": "0.1.0",
+    "name": "Sogitech Codec Processor",
+    "description": "Full hybrid codec processor: audio in + parameter vector in → resynthesis + residual mix out. Pure DSP analysis-resynthesis path or decoder half of a parameter/neural codec.",
+    "manufacturer": "ljrseals-dev",
+    "category": "effect",
+    "isInstrument": false,
+    "source": "SogitechCodecProcessor.cmajor"
+}

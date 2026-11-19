@@ -16,17 +16,8 @@ def spectral_features(
     Compute basic spectral features used to drive SOL-DPKVA and additiveBlend.
     Returns dict with keys: times, centroid, flatness, flux, bandwidth.
     """
-    audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if (not np.isfinite(sr) or sr <= 0 or not isinstance(n_fft, (int, np.integer))
-            or isinstance(n_fft, bool) or not isinstance(hop_length, (int, np.integer))
-            or isinstance(hop_length, bool) or n_fft < 2 or hop_length < 1):
-        raise ValueError("invalid sample rate or STFT frame geometry")
-    if audio.size == 0 or not np.all(np.isfinite(audio)):
-        raise ValueError("audio must contain finite samples")
-    if audio.size < n_fft:
-        audio = np.pad(audio, (0, n_fft - audio.size))
 
     try:
         import librosa
@@ -38,7 +29,7 @@ def spectral_features(
         bandwidth = librosa.feature.spectral_bandwidth(S=S, sr=sr)[0]
     except Exception:
         # Minimal fallback
-        n_frames = 1 + max(0, (len(audio) - n_fft) // hop_length)
+        n_frames = 1 + (len(audio) - n_fft) // hop_length
         times = np.arange(n_frames) * hop_length / sr
         centroid = np.full(n_frames, 2000.0)
         flatness = np.full(n_frames, 0.1)
@@ -62,14 +53,8 @@ def estimate_filter_params(
     Map spectral features onto the normalised filter controls of the hybrid engine.
     filterLP / filterHP are in [0, 1] as expected by the Cmajor processor.
     """
-    if not np.isfinite(sr) or sr <= 0:
-        raise ValueError("sample rate must be positive")
-    centroid = np.asarray(features["centroid"], dtype=np.float64)
-    flatness = np.asarray(features["flatness"], dtype=np.float64)
-    if centroid.ndim != 1 or flatness.ndim != 1 or centroid.size == 0 or centroid.shape != flatness.shape:
-        raise ValueError("centroid and flatness must be non-empty one-dimensional arrays of equal length")
-    if not np.all(np.isfinite(centroid)) or not np.all(np.isfinite(flatness)):
-        raise ValueError("spectral features must contain finite values")
+    centroid = features["centroid"]
+    flatness = features["flatness"]
 
     # Map centroid (Hz) roughly onto LP cutoff control
     # 180 Hz → ~0.0, 18 kHz → ~1.0
