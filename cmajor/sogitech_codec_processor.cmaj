@@ -50,7 +50,7 @@ processor SogitechCodecProcessor [[ main ]]
     float currentFreq = 440.0;
 
     // Monophonic policy: matching note-off releases the active pitch;
-    // CC 120/123 and MIDI all-notes/all-sound-off always release it.
+    // CC 120/123 and MIDI panic messages affect only their own channel.
     event midiIn (std::midi::Message message)
     {
         let noteNumber = std::midi::getNoteNumber (message);
