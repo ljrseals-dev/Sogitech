@@ -81,3 +81,53 @@ def test_renderer_rejects_non_finite_residual():
 def test_renderer_rejects_non_integer_sample_count():
     with pytest.raises(ValueError, match="sample_count"):
         render_parameter_stream(_frames(), [0.0, 0.08], 12.5, 48000)
+
+from python.analysis.envelope import harmonic_envelope, rms_envelope
+from python.analysis.residual import residual_energy
+from python.analysis.spectral import estimate_filter_params
+from python.brute.space import estimate_cardinality
+
+def test_envelope_and_residual_analysis_reject_invalid_sample_rates():
+    audio = np.ones(2048, dtype=np.float32)
+    with pytest.raises(ValueError, match="sample rate"):
+        rms_envelope(audio, 0)
+    with pytest.raises(ValueError, match="sample rate"):
+        residual_energy(audio, 0)
+
+def test_short_envelope_and_residual_frames_are_finite():
+    audio = np.ones(64, dtype=np.float32) * 0.1
+    _, rms = rms_envelope(audio, 48000)
+    _, residual = residual_energy(audio, 4000)
+    assert len(rms) == 1 and np.all(np.isfinite(rms))
+    assert len(residual) == 1 and np.all(np.isfinite(residual))
+
+def test_harmonic_envelope_rejects_mismatched_analysis_frames():
+    with pytest.raises(ValueError, match="equal length"):
+        harmonic_envelope(np.ones(2048), 48000, np.array([440.0]), np.array([0.0, 0.1]))
+
+def test_filter_mapping_rejects_non_finite_features():
+    with pytest.raises(ValueError, match="finite values"):
+        estimate_filter_params({
+            "centroid": np.array([1000.0, np.nan]),
+            "flatness": np.array([0.1, 0.2]),
+        }, 48000)
+
+def test_brute_cardinality_rejects_non_list_dimensions():
+    with pytest.raises(ValueError, match="non-empty list"):
+        estimate_cardinality({"dimensions": {"pitch": "autocorr"}})
+
+def test_controller_rejects_non_finite_feature_vector():
+    controller = ParameterController()
+    features = np.zeros(64, dtype=np.float32)
+    features[0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        controller.predict_dict(features)
+
+def test_custom_brute_space_cannot_override_hard_candidate_ceiling():
+    from python.brute.plan import main
+    from unittest.mock import patch
+    import json
+    from pathlib import Path
+    with patch("sys.argv", ["plan", "--max-cost-usd", "1000000000"]):
+        with pytest.raises(SystemExit):
+            main()
