@@ -238,8 +238,11 @@ processor SogitechParamDecoder [[ main ]]
 
             let rectifier = abs (mixed);
             loadMemory = 0.992 * loadMemory + 0.008 * rectifier;
-            sagMemory *= exp (-0.12 * powerSagDepth * loadMemory * srInv);
-            sagMemory = max (0.48, sagMemory);
+            // Track the load-dependent sag target so attenuation recovers
+            // when the signal load falls instead of accumulating permanently.
+            let sagTarget = max (0.48, 1.0 - powerSagDepth * loadMemory * 0.8);
+            let sagRecovery = exp (-1.0 / (0.15 * sampleRate));
+            sagMemory = sagTarget + (sagMemory - sagTarget) * sagRecovery;
             mixed *= sagMemory;
 
             let lpK = prewarp (lpCutoff, sampleRate) * srInv;
