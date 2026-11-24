@@ -225,7 +225,7 @@ processor SogitechParamDecoder [[ main ]]
 
         loop
         {
-            let sourceNote = activeMidiNote >= 0 ? float (activeMidiNote) : midiNote;
+            let sourceNote = noteActive ? float (activeMidiNote) : midiNote;
             let bentNote = clamp (sourceNote + pitchBendSemitones, 0.0, 127.0);
             let velocityValue = hasMidiVelocity ? activeVelocity : velocity;
             let pressureValue = hasMidiPressure ? activePressure : pressure;
