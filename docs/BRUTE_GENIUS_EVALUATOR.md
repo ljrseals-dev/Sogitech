@@ -47,7 +47,7 @@ does not train a neural controller or use random/unverified checkpoints.
 - `spectral_l1`: mean absolute magnitude-spectrum difference at 1024-point STFT.
 - `multi_res_stft`: mean magnitude difference across 512, 1024, and 2048-point STFTs.
 - `parameter_l1`: mean absolute parameter error before/after uniform quantisation.
-- `residual_energy_error`: absolute difference between input RMS and residual RMS.
+- `residual_energy_error`: mean-square energy of the reconstruction residual (input minus rendered output).
 - `peak_dbfs`: rendered peak level.
 - `elapsed_ms`: measured local analysis/render wall time for each repetition.
 
