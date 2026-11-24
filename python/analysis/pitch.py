@@ -13,6 +13,7 @@ def estimate_f0(
     hop_length: int = 512,
     fmin: float = 50.0,
     fmax: float = 2000.0,
+    method: str = "auto",
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Simple autocorrelation-based f0 estimator (robust enough for the codec demo).
@@ -23,27 +24,31 @@ def estimate_f0(
         audio = audio.mean(axis=1)
     if sr <= 0 or frame_length < 2 or hop_length < 1 or fmin <= 0 or fmax <= fmin:
         raise ValueError("invalid sample rate, frame geometry, or pitch range")
+    if method not in ("auto", "autocorr", "librosa_pyin"):
+        raise ValueError("method must be auto, autocorr, or librosa_pyin")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
         raise ValueError("audio must contain finite samples")
     if audio.size < frame_length:
         audio = np.pad(audio, (0, frame_length - audio.size))
 
     # Prefer librosa if available for better quality
-    try:
-        import librosa
-        f0, voiced_flag, _ = librosa.pyin(
-            audio,
-            fmin=fmin,
-            fmax=fmax,
-            sr=sr,
-            frame_length=frame_length,
-            hop_length=hop_length,
-        )
-        times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
-        f0 = np.where(voiced_flag, f0, 0.0)
-        return times, f0
-    except Exception:
-        pass
+    if method in ("auto", "librosa_pyin"):
+        try:
+            import librosa
+            f0, voiced_flag, _ = librosa.pyin(
+                audio,
+                fmin=fmin,
+                fmax=fmax,
+                sr=sr,
+                frame_length=frame_length,
+                hop_length=hop_length,
+            )
+            times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
+            f0 = np.where(voiced_flag, f0, 0.0)
+            return times, f0
+        except Exception:
+            if method == "librosa_pyin":
+                raise RuntimeError("librosa pYIN was requested but is unavailable or failed")
 
     # Fallback pure-numpy autocorrelation
     n_frames = 1 + max(0, (len(audio) - frame_length) // hop_length)
