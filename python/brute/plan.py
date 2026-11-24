@@ -66,7 +66,8 @@ def main():
     print("=== Sogitech Codec – Brute Genius Plan ===")
     print(f"Space             : {space.get('name', 'unnamed')}")
     print(f"Cartesian upper   : {cardinality:,}")
-    print(f"Feasible candidates: {feasible:,}" if feasible is not None else "Feasible candidates: NOT ENUMERATED")
+    feasible_label = f"{feasible:,}" if feasible is not None else "NOT ENUMERATED"
+    print(f"Feasible candidates: {feasible_label}")
     print(f"Cost estimate     : ${estimated:.2f} (illustrative only)")
     print(f"Cost ceiling      : ${args.max_cost_usd:.2f}")
     print(f"Combo ceiling     : {max_combinations:,}")
