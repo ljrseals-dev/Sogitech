@@ -33,22 +33,22 @@ def estimate_f0(
 
     # Prefer librosa if available for better quality
     if method in ("auto", "librosa_pyin"):
-      try:
-        import librosa
-        f0, voiced_flag, _ = librosa.pyin(
-            audio,
-            fmin=fmin,
-            fmax=fmax,
-            sr=sr,
-            frame_length=frame_length,
-            hop_length=hop_length,
-        )
-        times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
-        f0 = np.where(voiced_flag, f0, 0.0)
-        return times, f0
-      except Exception:
-        if method == "librosa_pyin":
-            raise RuntimeError("librosa pYIN was requested but is unavailable or failed")
+        try:
+            import librosa
+            f0, voiced_flag, _ = librosa.pyin(
+                audio,
+                fmin=fmin,
+                fmax=fmax,
+                sr=sr,
+                frame_length=frame_length,
+                hop_length=hop_length,
+            )
+            times = librosa.times_like(f0, sr=sr, hop_length=hop_length)
+            f0 = np.where(voiced_flag, f0, 0.0)
+            return times, f0
+        except Exception:
+            if method == "librosa_pyin":
+                raise RuntimeError("librosa pYIN was requested but is unavailable or failed")
 
     # Fallback pure-numpy autocorrelation
     n_frames = 1 + max(0, (len(audio) - frame_length) // hop_length)
