@@ -126,7 +126,7 @@ def _spectral_metrics(reference: np.ndarray, rendered: np.ndarray, sr: int) -> d
 def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                        split: str, sr: int, bits: int, seed: int,
                        repetitions: int, latency_budget_ms: int) -> dict[str, Any]:
-    runs, metrics = [], []
+    runs = []
     for repetition in range(repetitions):
         started = time.perf_counter()
         rendered, detail = _analyse(audio, sr, bits, seed)
@@ -146,7 +146,7 @@ def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
         if not all(math.isfinite(v) for v in record.values()):
             raise RuntimeError("correctness gate failed: non-finite metric")
         runs.append(record)
-        metrics.append(detail)
+
 
     names = list(runs[0])
     aggregate = {name: {"mean": float(np.mean([r[name] for r in runs])),
