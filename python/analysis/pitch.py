@@ -20,8 +20,14 @@ def estimate_f0(
     Returns (times, f0_hz). Unvoiced frames are set to 0.
     """
     audio = np.asarray(audio, dtype=np.float64)
-    if audio.ndim > 1:
+    if audio.ndim == 2:
         audio = audio.mean(axis=1)
+    if audio.ndim != 1:
+        raise ValueError("audio must be mono or samples-by-channels stereo")
+    try:
+        fmin, fmax = float(fmin), float(fmax)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("fmin and fmax must be finite numeric frequencies") from exc
     if (not isinstance(sr, (int, np.integer)) or isinstance(sr, bool) or sr <= 0
             or not isinstance(frame_length, (int, np.integer)) or isinstance(frame_length, bool)
             or not isinstance(hop_length, (int, np.integer)) or isinstance(hop_length, bool)
@@ -92,6 +98,10 @@ def midi_from_f0(f0_hz: np.ndarray, default_midi: float = 69.0) -> np.ndarray:
     frequencies = np.asarray(f0_hz, dtype=np.float64)
     if frequencies.ndim == 0 or not np.all(np.isfinite(frequencies)) or np.any(frequencies < 0):
         raise ValueError("f0_hz must be a finite non-negative array")
+    try:
+        default_midi = float(default_midi)
+    except (TypeError, ValueError) as exc:
+        raise ValueError("default_midi must be finite and within MIDI range [0, 127]") from exc
     if not np.isfinite(default_midi) or not 0.0 <= default_midi <= 127.0:
         raise ValueError("default_midi must be finite and within MIDI range [0, 127]")
     midi = np.full(frequencies.shape, default_midi, dtype=np.float64)
