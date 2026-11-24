@@ -28,6 +28,10 @@ python scripts/demo_neural_codec.py --input examples/demo.wav --weights weights/
 
 # Local Brute Genius constrained candidate plan (does not launch jobs)
 python -m python.brute.plan --max-cost-usd 5
+
+# Evaluate one parameter-codec candidate on a labelled WAV fixture
+python -m python.brute.evaluate --input examples/demo.wav --output out/results.jsonl \\
+  --source-group demo-session-01 --split validation --bits 8 --sample-rate 48000
 ```
 
 The parameter and neural demos render audible WAV output using the deterministic
@@ -73,7 +77,7 @@ the demo deliberately refuses to substitute random weights.
 
 ## Brute Genius
 
-See [docs/BRUTE_GENIUS.md](docs/BRUTE_GENIUS.md). The local planner applies
+See [docs/BRUTE_GENIUS.md](docs/BRUTE_GENIUS.md) and [docs/BRUTE_GENIUS_EVALUATOR.md](docs/BRUTE_GENIUS_EVALUATOR.md). The local planner applies
 declared conditional constraints and reports both the Cartesian upper bound
 and feasible candidate count. It remains a planner: it does not run codec
 evaluations, launch Brute Genius jobs, or provision external workers. See
