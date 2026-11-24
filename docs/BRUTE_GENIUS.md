@@ -64,3 +64,19 @@ as though it were a measured result.
 
 Neural variants are experimental and require a trained checkpoint. The local
 planner does not claim that external models or Brute Genius workers are present.
+
+
+## First executable evaluator
+
+A deliberately narrow local evaluator now exists at
+`python -m python.brute.evaluate`. It exercises only the implemented
+parameter-codec path with explicit autocorrelation pitch tracking, RMS
+envelope, linear centroid filter mapping, no residual mix, uniform
+quantisation, and no neural controller. It varies quantisation bits (4/8/12)
+and sample rate (48/96 kHz), records source SHA-256, source group/split labels,
+fixed seed, repetitions, raw metrics, and aggregate statistics in JSONL.
+
+See [BRUTE_GENIUS_EVALUATOR.md](BRUTE_GENIUS_EVALUATOR.md) for command usage,
+metric definitions, limitations, and required next gates. The evaluator uses
+the Python reference renderer only. It does not prove Cmajor parity, measure
+CPU utilisation, enforce dataset group exclusivity, or claim real-time latency.
