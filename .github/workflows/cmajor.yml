@@ -3,13 +3,7 @@ name: Cmajor compiler validation
 on:
   push:
     branches: [main]
-    paths:
-      - "cmajor/**"
-      - ".github/workflows/cmajor.yml"
   pull_request:
-    paths:
-      - "cmajor/**"
-      - ".github/workflows/cmajor.yml"
   workflow_dispatch:
 
 permissions:
