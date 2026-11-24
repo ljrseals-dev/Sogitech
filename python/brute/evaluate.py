@@ -126,6 +126,12 @@ def _spectral_metrics(reference: np.ndarray, rendered: np.ndarray, sr: int) -> d
 def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                        split: str, sr: int, bits: int, seed: int,
                        repetitions: int, latency_budget_ms: int) -> dict[str, Any]:
+    if bits not in (4, 8, 12) or sr not in (48000, 96000):
+        raise ValueError("unsupported quantisation depth or sample rate")
+    if repetitions < 1 or repetitions > 20:
+        raise ValueError("repetitions must be between 1 and 20")
+    if not source_group or split not in ("train", "validation", "test"):
+        raise ValueError("source_group and a valid split label are required")
     runs = []
     for repetition in range(repetitions):
         started = time.perf_counter()
@@ -139,7 +145,7 @@ def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
         peak = float(np.max(np.abs(rendered)))
         record = {
             **spectral, "parameter_l1": detail["parameter_l1"],
-            "residual_energy_error": abs(residual_in - residual_out),
+            "residual_energy_error": residual_out ** 2,
             "peak_dbfs": 20.0 * math.log10(max(peak, 1e-12)),
             "elapsed_ms": elapsed * 1000.0,
         }
@@ -180,6 +186,8 @@ def main() -> None:
     parser.add_argument("--bits", type=int, choices=(4, 8, 12), default=8)
     parser.add_argument("--sample-rate", type=int, choices=(48000, 96000), default=48000)
     parser.add_argument("--latency-budget-ms", type=int, choices=(5, 20), default=20)
+    parser.add_argument("--commit-sha", default=None,
+                        help="Repository commit SHA for experiment provenance")
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--repetitions", type=int, default=3)
     args = parser.parse_args()
@@ -195,10 +203,12 @@ def main() -> None:
         audio = resample_poly(audio, args.sample_rate // divisor,
                               input_sr // divisor).astype(np.float64)
     result = evaluate_candidate(audio, digest, args.source_group, args.split,
-                                args.sample_rate, args.bits, args.seed, args.repetitions,\n                                args.latency_budget_ms)
+                                args.sample_rate, args.bits, args.seed, args.repetitions,
+                                args.latency_budget_ms)
     result["input_sample_rate"] = int(input_sr)
     result["evaluation_sample_rate"] = args.sample_rate
     result["tool"] = "sogitech.python.brute.evaluate"
+    result["repository_commit"] = args.commit_sha
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("a", encoding="utf-8") as stream:
         stream.write(json.dumps(result, sort_keys=True, allow_nan=False) + "\n")
