@@ -126,12 +126,22 @@ def _spectral_metrics(reference: np.ndarray, rendered: np.ndarray, sr: int) -> d
 def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                        split: str, sr: int, bits: int, seed: int,
                        repetitions: int, latency_budget_ms: int) -> dict[str, Any]:
-    if bits not in (4, 8, 12) or sr not in (48000, 96000):
+    if (not isinstance(bits, int) or isinstance(bits, bool) or bits not in (4, 8, 12)
+            or not isinstance(sr, int) or isinstance(sr, bool) or sr not in (48000, 96000)):
         raise ValueError("unsupported quantisation depth or sample rate")
-    if repetitions < 1 or repetitions > 20:
-        raise ValueError("repetitions must be between 1 and 20")
-    if not source_group or split not in ("train", "validation", "test"):
+    if (not isinstance(repetitions, int) or isinstance(repetitions, bool)
+            or repetitions < 1 or repetitions > 20):
+        raise ValueError("repetitions must be an integer between 1 and 20")
+    if not isinstance(seed, int) or isinstance(seed, bool) or seed < 0:
+        raise ValueError("seed must be a non-negative integer")
+    if not isinstance(latency_budget_ms, int) or isinstance(latency_budget_ms, bool) or latency_budget_ms not in (5, 20):
+        raise ValueError("latency budget must be 5 or 20 milliseconds")
+    if not isinstance(source_group, str) or not source_group.strip() or split not in ("train", "validation", "test"):
         raise ValueError("source_group and a valid split label are required")
+    if (not isinstance(source_sha256, str) or len(source_sha256) != 64
+            or any(ch not in "0123456789abcdef" for ch in source_sha256.lower())):
+        raise ValueError("source_sha256 must be a 64-character hexadecimal digest")
+    audio = _mono(audio)
     runs = []
     for repetition in range(repetitions):
         started = time.perf_counter()
@@ -140,7 +150,6 @@ def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
         if rendered.shape != audio.shape or not np.all(np.isfinite(rendered)):
             raise RuntimeError("correctness gate failed: output shape or samples invalid")
         spectral = _spectral_metrics(audio, rendered, sr)
-        residual_in = float(np.sqrt(np.mean(np.square(audio))))
         residual_out = float(np.sqrt(np.mean(np.square(audio - rendered))))
         peak = float(np.max(np.abs(rendered)))
         record = {
@@ -162,14 +171,14 @@ def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                  "envelope_method": "rms", "residual_strategy": "none",
                  "filter_mapping": "centroid_linear", "quantisation_bits": bits,
                  "quantisation_layout": "uniform", "neural_controller": "none",
-                 "objective_primary": "multi_res_stft", "sample_rate": sr,
-                 "latency_budget_ms": latency_budget_ms}
+                 "objective_primary": "multi_res_stft", "sample_rate": sr}
     canonical = json.dumps(candidate, sort_keys=True, separators=(",", ":"))
     candidate_id = hashlib.sha256(canonical.encode()).hexdigest()[:16]
     return {
         "schema_version": 1, "candidate_id": candidate_id, "candidate": candidate,
         "source_sha256": source_sha256, "source_group": source_group, "split": split,
         "sample_count": int(audio.size), "seed": seed, "repetitions": repetitions,
+        "latency_budget_ms": latency_budget_ms,
         "correctness": "PASS", "metrics": aggregate, "raw_runs": runs,
         "limitations": ["python_reference_renderer_only", "cpu_load_not_measured",
                         "cmajor_parity_not_checked", "single_fixture_run"],
