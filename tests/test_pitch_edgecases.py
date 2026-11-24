@@ -36,3 +36,18 @@ def test_midi_conversion_validates_frequency_and_default():
         midi_from_f0(np.array([np.nan]))
     with pytest.raises(ValueError):
         midi_from_f0(np.array([0.0]), default_midi=128.0)
+
+
+def test_pitch_rejects_more_than_two_audio_dimensions():
+    with pytest.raises(ValueError, match="mono or samples-by-channels"):
+        estimate_f0(np.ones((2048, 2, 1)), 48000, method="autocorr")
+
+
+def test_pitch_rejects_non_numeric_frequency_bounds():
+    with pytest.raises(ValueError, match="numeric frequencies"):
+        estimate_f0(np.ones(2048), 48000, fmin="low", method="autocorr")
+
+
+def test_pitch_rejects_non_numeric_default_midi():
+    with pytest.raises(ValueError, match="default_midi"):
+        midi_from_f0(np.array([0.0]), default_midi="middle C")
