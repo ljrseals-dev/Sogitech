@@ -18,6 +18,20 @@ repositories:
 read-only research reference. Its owner controls its source and ongoing
 development. No changes, copied code, or assumed test results are made there.
 
+## Metronome method inspected
+
+Metronome v4's code/tests/machine_lockstep/README.md documents a per-cycle
+lockstep harness between a Lean executable spec and a Python model. It compares
+outputs plus a 197-key state dump, supports directed and random scenarios,
+self-tests mismatch detection with a fake simulator that flips a selected bit,
+and reports the earliest divergence for disciplined triage.
+
+The Sogitech adaptation is property-oriented rather than cycle-oriented:
+compare parameter encode/decode invariants, quantization boundaries, and
+deterministic renderer outputs; inject deliberate one-bit/one-field faults
+into test doubles to prove that checks detect them. The Metronome harness is
+not imported and its ASIC/RTL-specific implementation is not a codec backend.
+
 ## Hypotheses worth testing
 
 1. **Fixed-point conformance:** use Sogitech quantization/dequantization vectors
