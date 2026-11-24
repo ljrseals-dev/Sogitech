@@ -70,7 +70,7 @@ def _mono(audio: np.ndarray) -> np.ndarray:
 
 
 def _analyse(audio: np.ndarray, sr: int, bits: int, seed: int) -> tuple[np.ndarray, dict]:
-    times, f0 = estimate_f0(audio, sr)
+    times, f0 = estimate_f0(audio, sr, method="autocorr")
     midi = midi_from_f0(f0)
     features = spectral_features(audio, sr)
     filt = estimate_filter_params(features, sr)
@@ -125,7 +125,7 @@ def _spectral_metrics(reference: np.ndarray, rendered: np.ndarray, sr: int) -> d
 
 def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                        split: str, sr: int, bits: int, seed: int,
-                       repetitions: int) -> dict[str, Any]:
+                       repetitions: int, latency_budget_ms: int) -> dict[str, Any]:
     runs, metrics = [], []
     for repetition in range(repetitions):
         started = time.perf_counter()
@@ -157,7 +157,7 @@ def evaluate_candidate(audio: np.ndarray, source_sha256: str, source_group: str,
                  "filter_mapping": "centroid_linear", "quantisation_bits": bits,
                  "quantisation_layout": "uniform", "neural_controller": "none",
                  "objective_primary": "multi_res_stft", "sample_rate": sr,
-                 "latency_budget_ms": None}
+                 "latency_budget_ms": latency_budget_ms}
     canonical = json.dumps(candidate, sort_keys=True, separators=(",", ":"))
     candidate_id = hashlib.sha256(canonical.encode()).hexdigest()[:16]
     return {
@@ -179,6 +179,7 @@ def main() -> None:
     parser.add_argument("--split", required=True, choices=("train", "validation", "test"))
     parser.add_argument("--bits", type=int, choices=(4, 8, 12), default=8)
     parser.add_argument("--sample-rate", type=int, choices=(48000, 96000), default=48000)
+    parser.add_argument("--latency-budget-ms", type=int, choices=(5, 20), default=20)
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--repetitions", type=int, default=3)
     args = parser.parse_args()
@@ -194,7 +195,7 @@ def main() -> None:
         audio = resample_poly(audio, args.sample_rate // divisor,
                               input_sr // divisor).astype(np.float64)
     result = evaluate_candidate(audio, digest, args.source_group, args.split,
-                                args.sample_rate, args.bits, args.seed, args.repetitions)
+                                args.sample_rate, args.bits, args.seed, args.repetitions,\n                                args.latency_budget_ms)
     result["input_sample_rate"] = int(input_sr)
     result["evaluation_sample_rate"] = args.sample_rate
     result["tool"] = "sogitech.python.brute.evaluate"
