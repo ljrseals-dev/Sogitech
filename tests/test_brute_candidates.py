@@ -57,3 +57,12 @@ def test_cartesian_upper_bound_respects_ceiling():
     }
     with pytest.raises(ValueError, match="exceeds combination ceiling"):
         list(iter_candidates(space))
+
+
+def test_undeclared_constraint_choice_is_rejected():
+    space = {
+        "dimensions": {"mode": ["fast", "safe"], "width": [4, 8]},
+        "constraints": [{"if": {"mode": "turbo"}, "then": {"width": [8]}}],
+    }
+    with pytest.raises(ValueError, match="not declared"):
+        list(iter_candidates(space))
