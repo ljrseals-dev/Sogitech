@@ -40,10 +40,14 @@ def _oscillator(phase, shape):
 def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed=7,
                             residual=None):
     """Render parameter frames to mono float32 audio."""
-    if not np.isfinite(sample_rate) or sample_rate < 8000 or sample_rate > 192000:
-        raise ValueError("sample_rate must be finite and between 8000 and 192000 Hz")
-    if not isinstance(sample_count, (int, np.integer)) or sample_count < 1:
-        raise ValueError("sample_count must be positive")
+    if (not isinstance(sample_rate, (int, np.integer)) or isinstance(sample_rate, bool)
+            or sample_rate < 8000 or sample_rate > 192000):
+        raise ValueError("sample_rate must be an integer between 8000 and 192000 Hz")
+    if (not isinstance(sample_count, (int, np.integer)) or isinstance(sample_count, bool)
+            or sample_count < 1):
+        raise ValueError("sample_count must be a positive integer")
+    if not isinstance(seed, (int, np.integer)) or isinstance(seed, bool):
+        raise ValueError("seed must be an integer")
     if not frames:
         raise ValueError("at least one parameter frame is required")
     frame_times = np.asarray(times, dtype=np.float64)
@@ -72,8 +76,13 @@ def render_parameter_stream(frames, times, sample_count, sample_rate=48000, seed
           + _oscillator(phase2, p["osc2Wave"]) * np.clip(p["osc2Level"], 0, 1)
           + np.sin(sub_phase) * np.clip(p["subLevel"], 0, 1))
     additive = np.zeros(sample_count, dtype=np.float64)
+    # A fixed 32-partial stack aliases badly at high notes. Limit each
+    # sample's partial count below Nyquist (with a small transition margin).
     for harmonic in range(1, 33):
-        additive += np.sin(phase * harmonic) / harmonic
+        audible = frequency * harmonic < sample_rate * 0.45
+        if not np.any(audible):
+            break
+        additive[audible] += np.sin(phase[audible] * harmonic) / harmonic
     additive *= 0.14
     blend = np.clip(p["additiveBlend"], 0, 1)
     signal = va * (1.0 - blend) + additive * blend
