@@ -9,6 +9,8 @@ from itertools import product
 from math import prod
 from typing import Any, Iterator
 
+from .space import SOGITECH_CODEC_SPACE
+
 
 def _validated_parts(space: dict[str, Any] | None):
     selected = SOGITECH_CODEC_SPACE if space is None else space
@@ -49,9 +51,14 @@ def _validated_parts(space: dict[str, Any] | None):
         unknown = (set(condition) | set(consequence)) - set(keys)
         if unknown:
             raise ValueError(f"constraint references unknown dimensions: {', '.join(sorted(unknown))}")
+        for key, expected in condition.items():
+            if expected not in dimensions[key]:
+                raise ValueError(f"condition value for {key} is not declared in its dimension")
         for key, allowed in consequence.items():
             if not isinstance(allowed, list) or not allowed:
                 raise ValueError(f"constraint values for {key} must be a non-empty list")
+            if any(value not in dimensions[key] for value in allowed):
+                raise ValueError(f"constraint values for {key} contain undeclared choices")
     cardinality = prod(len(axis) for axis in values)
     if cardinality > max_combinations:
         raise ValueError(
@@ -81,7 +88,3 @@ def iter_candidates(space: dict[str, Any] | None = None) -> Iterator[dict[str, A
 def count_candidates(space: dict[str, Any] | None = None) -> int:
     """Count valid candidates after applying conditional constraints."""
     return sum(1 for _ in iter_candidates(space))
-
-
-# Imported last to avoid a circular dependency during module initialization.
-from .space import SOGITECH_CODEC_SPACE  # noqa: E402
