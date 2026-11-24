@@ -22,8 +22,13 @@ def estimate_f0(
     audio = np.asarray(audio, dtype=np.float64)
     if audio.ndim > 1:
         audio = audio.mean(axis=1)
-    if sr <= 0 or frame_length < 2 or hop_length < 1 or fmin <= 0 or fmax <= fmin:
-        raise ValueError("invalid sample rate, frame geometry, or pitch range")
+    if (not isinstance(sr, (int, np.integer)) or isinstance(sr, bool) or sr <= 0
+            or not isinstance(frame_length, (int, np.integer)) or isinstance(frame_length, bool)
+            or not isinstance(hop_length, (int, np.integer)) or isinstance(hop_length, bool)
+            or frame_length < 2 or hop_length < 1
+            or not np.isfinite(fmin) or not np.isfinite(fmax)
+            or fmin <= 0 or fmax <= fmin or fmax >= sr * 0.5):
+        raise ValueError("invalid sample rate, frame geometry, or pitch range (fmax must be below Nyquist)")
     if method not in ("auto", "autocorr", "librosa_pyin"):
         raise ValueError("method must be auto, autocorr, or librosa_pyin")
     if audio.size == 0 or not np.all(np.isfinite(audio)):
@@ -55,8 +60,8 @@ def estimate_f0(
     f0 = np.zeros(n_frames, dtype=np.float64)
     times = np.arange(n_frames) * hop_length / sr
 
-    min_lag = int(sr / fmax)
-    max_lag = int(sr / fmin)
+    min_lag = max(1, int(np.floor(sr / fmax)))
+    max_lag = min(frame_length - 1, int(np.ceil(sr / fmin)))
 
     for i in range(n_frames):
         start = i * hop_length
@@ -68,7 +73,11 @@ def estimate_f0(
         corr = corr[len(corr) // 2 :]
         if max_lag >= len(corr):
             continue
-        segment = corr[min_lag:max_lag]
+        if corr[0] <= np.finfo(np.float64).eps:
+            continue
+        # Include the upper lag bound; the old exclusive slice omitted an
+        # exact integer lag at the requested lowest pitch.
+        segment = corr[min_lag:max_lag + 1]
         if segment.size == 0:
             continue
         lag = min_lag + int(np.argmax(segment))
@@ -79,8 +88,13 @@ def estimate_f0(
 
 
 def midi_from_f0(f0_hz: np.ndarray, default_midi: float = 69.0) -> np.ndarray:
-    """Convert f0 (Hz) to continuous MIDI note numbers. 0 Hz → default_midi."""
-    midi = np.full_like(f0_hz, default_midi, dtype=np.float64)
-    voiced = f0_hz > 0
-    midi[voiced] = 69.0 + 12.0 * np.log2(f0_hz[voiced] / 440.0)
+    """Convert finite non-negative f0 values to MIDI; 0 Hz maps to default_midi."""
+    frequencies = np.asarray(f0_hz, dtype=np.float64)
+    if frequencies.ndim == 0 or not np.all(np.isfinite(frequencies)) or np.any(frequencies < 0):
+        raise ValueError("f0_hz must be a finite non-negative array")
+    if not np.isfinite(default_midi) or not 0.0 <= default_midi <= 127.0:
+        raise ValueError("default_midi must be finite and within MIDI range [0, 127]")
+    midi = np.full(frequencies.shape, default_midi, dtype=np.float64)
+    voiced = frequencies > 0
+    midi[voiced] = 69.0 + 12.0 * np.log2(frequencies[voiced] / 440.0)
     return midi
