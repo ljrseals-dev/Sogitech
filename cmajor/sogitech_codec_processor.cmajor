@@ -192,10 +192,13 @@ processor SogitechCodecProcessor [[ main ]]
         return 2.0 * sr * tan (omega * 0.5);
     }
 
-    float digitalOsc (float phase)
+    float digitalOsc (float phase, float fundamental, float sampleRate)
     {
         float sig = 0.0;
-        for (int k = 1; k <= 32; ++k)
+        // Exclude harmonics at/above Nyquist to prevent the additive stack
+        // from folding ultrasonic partials back into the audible band.
+        let maxHarmonic = int (min (32.0, floor (sampleRate * 0.45 / max (fundamental, 1.0))));
+        for (int k = 1; k <= maxHarmonic; ++k)
             sig += sin (phase * float (k)) / float (k);
         return sig * 0.14;
     }
@@ -207,7 +210,7 @@ processor SogitechCodecProcessor [[ main ]]
             case 0: return sin (phase);
             case 1: return (phase / pi) - 1.0;
             case 2: return (phase < 2.0 * pi * clamp (pwm, 0.05, 0.95)) ? 1.0 : -1.0;
-            case 3: return abs (sin (phase));
+            case 3: return 1.0 - (2.0 / pi) * acos (clamp (sin (phase), -1.0, 1.0));
             default: return sin (phase);
         }
     }
@@ -244,7 +247,7 @@ processor SogitechCodecProcessor [[ main ]]
                         + vaOsc (osc2Phase, int (osc2Wave), 0.5) * osc2Level
                         + sin (subPhase) * subLevel
                         + (random() * 2.0 - 1.0) * noiseLevel;
-            let additiveSig = digitalOsc (osc1Phase);
+            let additiveSig = digitalOsc (osc1Phase, currentFreq, sampleRate);
             float mixed = (1.0 - additiveBlend) * vaSig + additiveBlend * additiveSig;
             loadMemory = 0.992 * loadMemory + 0.008 * abs (mixed);
             // Track the load-dependent sag target so attenuation recovers
