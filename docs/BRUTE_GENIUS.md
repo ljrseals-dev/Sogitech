@@ -3,8 +3,7 @@
 Sogitech exposes a bounded Cartesian search space in `python/brute/space.py`.
 Version 2 adds explicit codec mode, pitch/envelope analysis, residual policy,
 filter mapping, quantisation layout, neural controller size, sample rate and
-latency budget. The full Cartesian upper bound is intentionally capped at
-50,000 combinations.
+latency budget. The full Cartesian upper bound is capped at 50,000 combinations.
 
 ## Run a local plan
 
@@ -13,10 +12,17 @@ python -m python.brute.plan --max-cost-usd 5
 python -m python.brute.plan --space path/to/custom_space.json
 ```
 
-The planner is local and read-only. It estimates a cost from a configurable
-per-combination assumption; it does not call Brute Genius, provision workers,
-or launch jobs. Conditional constraints are reported but are not applied as
-pruning, so the displayed cardinality is a conservative upper bound.
+The local planner now enumerates candidates and applies the declared
+conditional constraints before reporting the feasible count. Its cost remains
+an illustrative per-candidate estimate; it does not call Brute Genius,
+provision workers, execute DSP evaluations, or launch jobs. The Cartesian
+upper bound is still checked against the configured safety ceiling before
+enumeration.
+
+For the default v2 space, the unconstrained Cartesian upper bound is 23,328.
+The current conditional rule restricts DSP mode to the non-neural controller,
+leaving 15,552 feasible candidates. This is an arithmetic expectation from
+the declared dimensions, not a claim that 15,552 codec evaluations have run.
 
 ## Search dimensions
 
@@ -33,6 +39,19 @@ pruning, so the displayed cardinality is a conservative upper bound.
 | objective_primary | spectral L1, multi-resolution STFT, perceptual proxy |
 | sample_rate | 48 kHz, 96 kHz |
 | latency_budget_ms | 5, 20 |
+
+## Candidate enumeration contract
+
+`python.brute.candidates.iter_candidates` yields candidate dictionaries in
+stable dimension/value declaration order. `count_candidates` applies the
+same filtering logic and returns the number of feasible candidates. Invalid
+constraint references, empty axes, and search spaces exceeding the declared
+combination ceiling fail closed.
+
+These functions enumerate configurations only. A future evaluator must
+separately bind each candidate to fixed source-grouped fixtures, deterministic
+seeds, real measured metrics, and repeated runs. It must not rank candidates
+using placeholder scores or estimated latency.
 
 ## Evaluation protocol
 

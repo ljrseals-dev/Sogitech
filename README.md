@@ -26,7 +26,7 @@ python scripts/train_controller.py --data path/to/wav_dataset --out weights/cont
 # Neural controller -> bounded parameters -> rendered audio
 python scripts/demo_neural_codec.py --input examples/demo.wav --weights weights/controller.pt --out out/neural.wav
 
-# Local Brute Genius cost/cardinality plan only (does not launch remote work)
+# Local Brute Genius constrained candidate plan (does not launch jobs)
 python -m python.brute.plan --max-cost-usd 5
 ```
 
@@ -73,9 +73,12 @@ the demo deliberately refuses to substitute random weights.
 
 ## Brute Genius
 
-See [docs/BRUTE_GENIUS.md](docs/BRUTE_GENIUS.md). The local planner reports a
-conservative Cartesian upper bound and an illustrative cost estimate. It does
-not launch Brute Genius jobs or provision external workers.
+See [docs/BRUTE_GENIUS.md](docs/BRUTE_GENIUS.md). The local planner applies
+declared conditional constraints and reports both the Cartesian upper bound
+and feasible candidate count. It remains a planner: it does not run codec
+evaluations, launch Brute Genius jobs, or provision external workers. See
+[docs/CROSS_PROJECT_RESEARCH.md](docs/CROSS_PROJECT_RESEARCH.md) for the CPU and
+Metronome research boundaries.
 
 ## Validation
 
