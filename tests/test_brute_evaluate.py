@@ -49,3 +49,36 @@ def test_candidate_record_is_repeatable_and_has_provenance():
         second["metrics"]["multi_res_stft"]["mean"], abs=1e-12
     )
     assert "cmajor_parity_not_checked" in first["limitations"]
+
+
+@pytest.mark.parametrize("overrides", [
+    {"seed": -1},
+    {"seed": True},
+    {"repetitions": True},
+    {"latency_budget_ms": 10},
+    {"source_group": "   "},
+    {"source_sha256": "not-a-digest"},
+])
+def test_evaluator_rejects_invalid_provenance_and_protocol_values(overrides):
+    sr = 48000
+    t = np.arange(4096) / sr
+    audio = 0.2 * np.sin(2 * np.pi * 220 * t)
+    args = dict(audio=audio, source_sha256="a" * 64,
+                source_group="performer-session-1", split="validation",
+                sr=sr, bits=8, seed=19, repetitions=2, latency_budget_ms=20)
+    args.update(overrides)
+    with pytest.raises(ValueError):
+        evaluate_candidate(**args)
+
+
+def test_latency_budget_does_not_change_candidate_identity():
+    sr = 48000
+    t = np.arange(4096) / sr
+    audio = 0.2 * np.sin(2 * np.pi * 220 * t)
+    first = evaluate_candidate(audio, "a" * 64, "performer-session-1",
+                               "validation", sr, 8, 19, 1, 5)
+    second = evaluate_candidate(audio, "a" * 64, "performer-session-1",
+                                "validation", sr, 8, 19, 1, 20)
+    assert first["candidate_id"] == second["candidate_id"]
+    assert first["latency_budget_ms"] == 5
+    assert second["latency_budget_ms"] == 20

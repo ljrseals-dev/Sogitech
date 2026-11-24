@@ -24,6 +24,30 @@ def make_feature_vector(audio: np.ndarray, sr: int) -> np.ndarray:
     ],dtype=np.float32)
     return np.pad(vec,(0,56))
 
+def build_neural_frames(params: dict, f0: np.ndarray) -> list[dict]:
+    """Build note frames and gate unvoiced regions instead of synthesising A4."""
+    frequencies = np.asarray(f0, dtype=np.float64)
+    if frequencies.ndim != 1 or not np.all(np.isfinite(frequencies)) or np.any(frequencies < 0):
+        raise ValueError("f0 must be a finite non-negative one-dimensional array")
+    base_note = float(params["midiNote"])
+    base_velocity = float(params["velocity"])
+    if not np.isfinite(base_note) or not 0.0 <= base_note <= 127.0:
+        raise ValueError("predicted midiNote must be within [0, 127]")
+    if not np.isfinite(base_velocity) or not 0.0 <= base_velocity <= 1.0:
+        raise ValueError("predicted velocity must be within [0, 1]")
+    notes = midi_from_f0(frequencies)
+    frames = []
+    for note, voiced in zip(notes, frequencies > 0.0):
+        frame = dict(params)
+        frame["midiNote"] = float(note) if voiced else base_note
+        frame["velocity"] = base_velocity if voiced else 0.0
+        # Residual extraction is not implemented in this path; do not leak
+        # the original waveform through an unverified learned residual gain.
+        frame["residualGain"] = 0.0
+        frames.append(frame)
+    return frames
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input",required=True); parser.add_argument("--out",default="out_neural.wav")
@@ -42,11 +66,8 @@ def main():
     sidecar.write_text(json.dumps(params,indent=2),encoding="utf-8")
     # The network predicts a global timbre vector; retain note/envelope motion
     # from the source analysis so the rendered result follows the input phrase.
-    _,f0=estimate_f0(audio,sr); midi=midi_from_f0(f0)
-    frame_times=np.linspace(0.0,max(len(audio)/sr,1/sr),len(midi))
-    frames=[]
-    for note in midi:
-        frame=dict(params); frame["midiNote"]=float(np.clip(note,0,127)); frames.append(frame)
+    frame_times,f0=estimate_f0(audio,sr)
+    frames=build_neural_frames(params,f0)
     rendered=render_parameter_stream(frames,frame_times,len(audio),sr,args.seed,residual=audio)
     sf.write(out,rendered,sr,subtype="PCM_16")
     print(f"Wrote neural resynthesis: {out}")
