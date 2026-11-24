@@ -1,12 +1,16 @@
 name: Cmajor compiler validation
 
-on:
+'on':
   push: {}
   pull_request: {}
   workflow_dispatch: {}
 
 permissions:
   contents: read
+
+concurrency:
+  group: cmajor-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   compile-patches:
@@ -37,7 +41,11 @@ jobs:
           mkdir -p "$RUNNER_TEMP/cmajor"
           unzip -q "$archive" -d "$RUNNER_TEMP/cmajor"
           compiler="$(find "$RUNNER_TEMP/cmajor" -type f -name cmaj -perm -u+x -print -quit)"
-          test -n "$compiler"
+          if [[ -z "$compiler" ]]; then
+            echo "::error::The verified Cmajor archive did not contain an executable named cmaj"
+            find "$RUNNER_TEMP/cmajor" -maxdepth 3 -type f -print
+            exit 1
+          fi
           echo "CMAJ_BIN=$compiler" >> "$GITHUB_ENV"
 
       - name: Verify compiler version
